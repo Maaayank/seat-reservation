@@ -1,9 +1,11 @@
 # Seat Reservation at Scale
 
 Spring Boot 4 + PostgreSQL service that sells assigned seats correctly under concurrent load.
-Design and decisions: [`docs/DISCOVERY.md`](docs/DISCOVERY.md).
 
-> Work in progress. Sections below grow phase by phase.
+- **Live:** https://seat-reservation-vh11.onrender.com (Render free tier; the first request after idle can take ~60 s)
+- **Write-up:** [`WRITEUP.md`](WRITEUP.md)
+- **Design and decision log:** [`docs/DISCOVERY.md`](docs/DISCOVERY.md)
+- **Deploy runbook:** [`docs/DEPLOY.md`](docs/DEPLOY.md)
 
 ## Run locally
 
@@ -18,7 +20,7 @@ podman compose up --build
 
 Service: `http://localhost:8080`.
 
-## Endpoints (so far)
+## Endpoints
 
 | Path | Purpose |
 |---|---|
@@ -90,7 +92,7 @@ What it does, on one fresh show:
 
 Requests that get no HTTP response (timeouts, dropped connections) are reported separately as client-side errors, never as 5xx. A 5xx is labelled `(app)` when it carries this service's JSON error body (with `request_id`) and `(edge)` when it came from a proxy in front of it.
 
-Behind a TLS-inspecting corporate proxy on Windows, Java may fail with `PKIX path building failed`. Use the Windows trust store: `JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStoreType=Windows-ROOT ./burst.sh ...`.
+Behind a TLS-inspecting proxy on Windows, Java may fail with `PKIX path building failed`. Use the Windows trust store: `JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStoreType=Windows-ROOT ./burst.sh ...`.
 
 Measured locally (`full`, run inside the compose network):
 
@@ -100,7 +102,11 @@ latency p50 219 ms | p95 936 ms | p99 1254 ms
 RESULT: PASS   (0 5xx, 10/10 hot seats with exactly one winner, metrics reconcile exactly)
 ```
 
-> **Capacity note.** The live demo runs on Render's free tier (shared ~0.1 CPU, 512 MB, sleeps when idle; the first request after idle can take ~60 s). Measured live once warm: smoke profile at 79–101 req/s with zero 5xx. Bursts sent while the instance is cold or waking can get 5xx from Render's edge before requests reach the app (the app itself returned none). Use `--profile smoke` against it. Run `full` against your own deploy, or locally with `make up && make burst-in-network`.
+> **Capacity note.** The live demo runs on Render's free tier: a shared ~0.1 CPU and 512 MB. It sleeps when idle, and the first request after idle can take ~60 s.
+> - **Smoke profile:** passes live.
+> - **Full profile (20k), live:** the app returned zero 5xx, and every correctness check held in every run (one winner per hot seat, invariant, reconciliation). Throughput is about 80 req/s, with p50 about 23 s.
+> - **Free-tier limits under the full burst:** Render's edge returned about 1 5xx per run, and one of the last three runs restarted the instance. The instance is CPU-bound at this size.
+> - **Clean full run:** use your own deploy, or run locally with `make up && make burst-in-network`.
 > Bursting a local stack through the host port (`localhost:8080`) with thousands of connections can hit the container runtime's port forwarder (we saw dropped connections with Podman on Windows). The server never sees those requests; the tool reports them as client-side errors. Running inside the compose network avoids it.
 
 ## Observability
