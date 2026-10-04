@@ -18,7 +18,11 @@ services:
     region: singapore
     branch: main
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /readyz
+    # Liveness, not readiness: Render restarts the instance when this fails. /readyz
+    # needs a DB connection, which waits behind a burst's queries; health checks then
+    # time out and Render restarted a healthy, busy instance. /readyz still reports DB
+    # state (503 when the DB is down) for anyone who asks.
+    healthCheckPath: /livez
     # Deploy main only after GitHub CI passes.
     autoDeployTrigger: checksPass
     envVars:
