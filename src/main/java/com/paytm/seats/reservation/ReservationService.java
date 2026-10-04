@@ -51,8 +51,8 @@ class ReservationService {
 	}
 
 	/**
-	 * Returns a confirmed or replayed reservation; throws {@link ApiException} for every
-	 * decline.
+	 * Returns the outcome; a decline is returned, not thrown, so the hot seat_taken path
+	 * throws no exception. An unknown show is still thrown (it is not counted per show).
 	 */
 	ReserveOutcome reserve(AuthenticatedUser user, String rawShowId, ReserveRequest request, String headerKey) {
 		UUID showId = ShowService.parseShowId(rawShowId);
@@ -69,9 +69,6 @@ class ReservationService {
 			outcome = new ReserveOutcome.Declined(ex.error(), ex.getMessage());
 		}
 		record(showId, seats, outcome);
-		if (outcome instanceof ReserveOutcome.Declined declined) {
-			throw new ApiException(declined.error(), declined.message());
-		}
 		return outcome;
 	}
 
