@@ -63,6 +63,31 @@ curl -s localhost:8080/shows -H 'Content-Type: application/json' -H 'X-Admin-Key
 Every response carries `X-Request-Id`. A well-formed client value is echoed; otherwise one is generated.
 Logs are JSON (ECS) on stdout and include `request_id`.
 
+## Observability
+
+`docker compose up --build` (or `podman compose up --build`) also starts:
+
+| URL | What |
+|---|---|
+| http://localhost:3000 | Grafana, anonymous view. Home dashboard "Seat Reservation" (`observability/grafana/dashboards/seat-reservation.json`). |
+| http://localhost:9090 | Prometheus. Scrapes the app every 5 s. Alert rules: `observability/prometheus/alerts.yml`. |
+
+Key metrics (`/actuator/prometheus`):
+
+| Metric | Meaning |
+|---|---|
+| `reservations_confirmed_total{show_id}` | Reservations created. |
+| `reservations_declined_total{show_id,reason}` | `seat_taken`, `per_user_limit`, `idempotent_replay`, `idempotency_key_reuse`, `invalid`. |
+| `reservations_cancelled_total{show_id}` | Cancels (repeat cancels not counted). |
+| `seats{show_id,state}` | Seats per state, read from the DB. Matches `GET /shows/{id}`. |
+| `seats_capacity{show_id}` | Total seats. `sum(seats) - sum(seats_capacity)` must be 0. |
+| `reservations_decline_path_total{layer}` | Which layer declined a seat_taken request. |
+| `http_server_requests_seconds_*`, `hikaricp_*`, `jvm_*` | Built-in. |
+
+Counters are in memory and reset on restart; the `seats` gauges come from the DB. The DB is only queried for them after a write (at most once per second), so an idle service lets a serverless DB sleep.
+
+Logs: JSON (ECS) on stdout via an async appender. Every line carries `request_id`; authenticated requests carry `user_id`. Each reserve logs one `reserve decided` line with `show_id`, `seats`, `outcome`, `reason`.
+
 ## Test
 
 ```sh
