@@ -11,8 +11,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * The atomic seat decision (T1, docs/DISCOVERY.md §4.3.3). One short READ
- * COMMITTED transaction, one statement per step:
+ * The atomic seat decision (T1, docs/DISCOVERY.md §4.3.3). One short READ COMMITTED
+ * transaction, one statement per step:
  *
  * <ol>
  * <li>Claim the idempotency key. An existing key means a retry: replay or 409.</li>
@@ -21,9 +21,9 @@ import tools.jackson.databind.ObjectMapper;
  * <li>Insert the reservation, confirm the seats, store the replayable response.</li>
  * </ol>
  *
- * Lock order is always key → quota → seats by label (D20), so no two
- * transactions can wait on each other in a cycle. Any decline rolls back
- * everything, including the key, so a declined key can be retried (D9).
+ * Lock order is always key → quota → seats by label (D20), so no two transactions can
+ * wait on each other in a cycle. Any decline rolls back everything, including the key, so
+ * a declined key can be retried (D9).
  */
 @Component
 class ReserveTransaction {
@@ -41,8 +41,8 @@ class ReserveTransaction {
 	}
 
 	/**
-	 * @param reservation the reservation to create if every check passes; its
-	 * id and amount are fixed before the transaction starts
+	 * @param reservation the reservation to create if every check passes; its id and
+	 * amount are fixed before the transaction starts
 	 */
 	ReserveOutcome execute(Show show, String key, String requestHash, ReservationView reservation) {
 		ReserveOutcome outcome = this.transactions.execute((tx) -> decide(tx, show, key, requestHash, reservation));
@@ -65,7 +65,8 @@ class ReserveTransaction {
 		}
 		List<ReservationRepository.LockedSeat> locked = this.repository.lockSeats(show.id(), seats);
 		if (locked.size() != seats.length) {
-			// Defensive: labels were already checked against the show before the transaction.
+			// Defensive: labels were already checked against the show before the
+			// transaction.
 			tx.setRollbackOnly();
 			return new ReserveOutcome.Declined(ErrorCode.INVALID_SEATS, "unknown seat label");
 		}
@@ -81,7 +82,10 @@ class ReserveTransaction {
 		return new ReserveOutcome.Confirmed(reservation);
 	}
 
-	/** The key exists and its transaction has finished: replay it, or 409 if the request differs. */
+	/**
+	 * The key exists and its transaction has finished: replay it, or 409 if the request
+	 * differs.
+	 */
 	private ReserveOutcome replay(String userId, String key, String requestHash) {
 		ReservationRepository.StoredKey stored = this.repository.findIdempotencyKey(userId, key)
 			.orElseThrow(() -> new IllegalStateException("idempotency key vanished after conflict"));

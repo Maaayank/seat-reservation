@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Reserve and cancel. Both need a bearer token (BearerTokenFilter); the user
- * comes only from the token, never from the body.
+ * Reserve and cancel. Both need a bearer token (BearerTokenFilter); the user comes only
+ * from the token, never from the body.
  */
 @RestController
 class ReservationController {
@@ -26,9 +26,8 @@ class ReservationController {
 	}
 
 	/**
-	 * 201 for a new reservation, and also for an idempotent replay (same key,
-	 * same request), which returns the original body with
-	 * {@code Idempotent-Replayed: true}.
+	 * 201 for a new reservation, and also for an idempotent replay (same key, same
+	 * request), which returns the original body with {@code Idempotent-Replayed: true}.
 	 */
 	@PostMapping("/shows/{showId}/reserve")
 	ResponseEntity<ReservationView> reserve(AuthenticatedUser user, @PathVariable String showId,
@@ -45,7 +44,10 @@ class ReservationController {
 			.body(reservation);
 	}
 
-	/** 200 with the reservation in status {@code cancelled}. A repeat cancel returns the same body. */
+	/**
+	 * 200 with the reservation in status {@code cancelled}. A repeat cancel returns the
+	 * same body.
+	 */
 	@PostMapping("/reservations/{reservationId}/cancel")
 	ReservationView cancel(AuthenticatedUser user, @PathVariable String reservationId) {
 		return this.cancels.cancel(user, reservationId);

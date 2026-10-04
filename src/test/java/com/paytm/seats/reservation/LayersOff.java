@@ -7,8 +7,8 @@ import java.lang.annotation.Target;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * Runs a test class with all fast-decline layers disabled, proving the DB
- * transaction alone is race-free (docs/DISCOVERY.md D15).
+ * Runs a test class with all fast-decline layers disabled, proving the DB transaction
+ * alone is race-free (docs/DISCOVERY.md D15).
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)

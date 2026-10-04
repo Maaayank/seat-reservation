@@ -9,22 +9,24 @@ import java.util.concurrent.ConcurrentMap;
 import org.springframework.stereotype.Component;
 
 /**
- * L2: in-memory record of seats this instance saw confirmed. A hit lets a
- * request be declined with no DB work. It is only a hint: a miss, an eviction
- * or a restart just falls through to L1 and the DB.
+ * L2: in-memory record of seats this instance saw confirmed. A hit lets a request be
+ * declined with no DB work. It is only a hint: a miss, an eviction or a restart just
+ * falls through to L1 and the DB.
  *
- * <p>Each entry remembers which reservation and user own the seat, so:
+ * <p>
+ * Each entry remembers which reservation and user own the seat, so:
  * <ul>
- * <li>a seat owned by the requester is never fast-declined (it may be an
- * idempotent retry that must replay its 201);</li>
+ * <li>a seat owned by the requester is never fast-declined (it may be an idempotent retry
+ * that must replay its 201);</li>
  * <li>a cancel removes only its own entry, never a newer owner's.</li>
  * </ul>
  *
- * <p>Ordering race: "mark sold" runs after the reserve commits and "mark
- * released" after the cancel commits, but the threads can arrive in either
- * order. Release first writes a tombstone for the reservation, then removes
- * the entry; mark-sold checks the tombstone inside the same per-key
- * {@code compute}. Either way the end state is "not sold", never a stale hit.
+ * <p>
+ * Ordering race: "mark sold" runs after the reserve commits and "mark released" after the
+ * cancel commits, but the threads can arrive in either order. Release first writes a
+ * tombstone for the reservation, then removes the entry; mark-sold checks the tombstone
+ * inside the same per-key {@code compute}. Either way the end state is "not sold", never
+ * a stale hit.
  */
 @Component
 class SoldSeats {

@@ -11,14 +11,12 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 /**
- * {@code POST /shows} body. {@code price_paise} is an integer number of paise;
- * fractional values are rejected at deserialisation. {@code per_user_limit} is
- * optional (default from config, 4).
+ * {@code POST /shows} body. {@code price_paise} is an integer number of paise; fractional
+ * values are rejected at deserialisation. {@code per_user_limit} is optional (default
+ * from config, 4).
  */
-public record CreateShowRequest(
-		@NotBlank @Size(max = 200) String name,
+public record CreateShowRequest(@NotBlank @Size(max = 200) String name,
 		@NotEmpty List<@NotNull @Pattern(regexp = "[A-Za-z0-9._-]{1,32}",
 				message = "seat labels must be 1-32 chars of [A-Za-z0-9._-]") String> seats,
-		@NotNull @PositiveOrZero Long pricePaise,
-		@Positive @Max(100) Integer perUserLimit) {
+		@NotNull @PositiveOrZero Long pricePaise, @Positive @Max(100) Integer perUserLimit) {
 }

@@ -10,21 +10,24 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.springframework.stereotype.Component;
 
 /**
- * L3: at most one in-flight DB attempt per seat in this instance. Requests
- * for a hot seat wait here on cheap virtual threads instead of each holding a
- * pooled DB connection while blocked on the row lock.
+ * L3: at most one in-flight DB attempt per seat in this instance. Requests for a hot seat
+ * wait here on cheap virtual threads instead of each holding a pooled DB connection while
+ * blocked on the row lock.
  *
- * <p>Locks are fair and taken in sorted label order, so multi-seat claims
- * cannot deadlock. Entries are reference counted and removed when unused.
- * On timeout the claim gives up its locks and the caller proceeds to the DB
- * anyway: correctness never depends on this layer.
+ * <p>
+ * Locks are fair and taken in sorted label order, so multi-seat claims cannot deadlock.
+ * Entries are reference counted and removed when unused. On timeout the claim gives up
+ * its locks and the caller proceeds to the DB anyway: correctness never depends on this
+ * layer.
  */
 @Component
 public class SeatClaims {
 
 	private final ConcurrentHashMap<SeatKey, Entry> entries = new ConcurrentHashMap<>();
 
-	/** @param sortedLabels labels in ascending order */
+	/**
+	 * @param sortedLabels labels in ascending order
+	 */
 	Claim acquire(UUID showId, List<String> sortedLabels, Duration timeout) throws InterruptedException {
 		long deadline = System.nanoTime() + timeout.toNanos();
 		List<SeatKey> held = new ArrayList<>(sortedLabels.size());
@@ -81,7 +84,10 @@ public class SeatClaims {
 
 	}
 
-	/** Holds the per-seat locks until closed. {@link #acquired()} is false after a timeout. */
+	/**
+	 * Holds the per-seat locks until closed. {@link #acquired()} is false after a
+	 * timeout.
+	 */
 	public static final class Claim implements AutoCloseable {
 
 		private final SeatClaims owner;

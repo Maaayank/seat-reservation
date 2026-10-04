@@ -18,8 +18,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
- * The correctness bar from the problem statement, under real concurrency
- * against real Postgres. All requests in a test start at the same instant.
+ * The correctness bar from the problem statement, under real concurrency against real
+ * Postgres. All requests in a test start at the same instant.
  */
 @IntegrationTest
 class ReservationConcurrencyTests {
@@ -46,8 +46,8 @@ class ReservationConcurrencyTests {
 		users.values().forEach((token) -> tasks.add(() -> this.fx.reserve(token, showId, List.of("S1"), key())));
 		List<TestHttp.Response> responses = ReservationFixtures.concurrently(tasks);
 
-		assertThat(ReservationFixtures.outcomes(responses)).containsExactlyInAnyOrderEntriesOf(
-				Map.of("201", 1L, "409:seat_taken", 499L));
+		assertThat(ReservationFixtures.outcomes(responses))
+			.containsExactlyInAnyOrderEntriesOf(Map.of("201", 1L, "409:seat_taken", 499L));
 		String winner = responses.stream()
 			.filter((r) -> r.status() == 201)
 			.findFirst()
@@ -75,8 +75,8 @@ class ReservationConcurrencyTests {
 		}
 		List<TestHttp.Response> responses = ReservationFixtures.concurrently(tasks);
 
-		assertThat(ReservationFixtures.outcomes(responses)).containsExactlyInAnyOrderEntriesOf(
-				Map.of("201", 4L, "409:per_user_limit", 6L));
+		assertThat(ReservationFixtures.outcomes(responses))
+			.containsExactlyInAnyOrderEntriesOf(Map.of("201", 4L, "409:per_user_limit", 6L));
 		assertThat(this.fx.show(showId).get("counts").get("confirmed").asInt()).isEqualTo(4);
 		this.fx.assertInvariants(showId);
 	}
@@ -98,8 +98,8 @@ class ReservationConcurrencyTests {
 			.map((r) -> r.json().get("reservation_id").asString())
 			.collect(Collectors.toSet());
 		assertThat(reservationIds).hasSize(1);
-		assertThat(responses.stream().filter((r) -> r.raw().headers().firstValue("Idempotent-Replayed")
-			.orElse("").equals("false"))).hasSize(1);
+		assertThat(responses.stream()
+			.filter((r) -> r.raw().headers().firstValue("Idempotent-Replayed").orElse("").equals("false"))).hasSize(1);
 		long reservations = this.jdbc.sql("SELECT count(*) FROM reservations WHERE show_id = ?")
 			.param(UUID.fromString(showId))
 			.query(Long.class)
@@ -129,8 +129,8 @@ class ReservationConcurrencyTests {
 		}
 		List<TestHttp.Response> responses = ReservationFixtures.concurrently(tasks);
 
-		assertThat(ReservationFixtures.outcomes(responses)).containsExactlyInAnyOrderEntriesOf(
-				Map.of("201", (long) pairs, "409:seat_taken", (long) pairs));
+		assertThat(ReservationFixtures.outcomes(responses))
+			.containsExactlyInAnyOrderEntriesOf(Map.of("201", (long) pairs, "409:seat_taken", (long) pairs));
 		assertThat(this.fx.show(showId).get("counts").get("confirmed").asInt()).isEqualTo(pairs * 2);
 		this.fx.assertInvariants(showId);
 	}

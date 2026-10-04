@@ -11,9 +11,9 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * Supplies {@link AuthenticatedUser} controller parameters from the request
- * attribute set by {@link BearerTokenFilter}. Fails loudly if a handler asks
- * for a user on a route the filter does not protect.
+ * Supplies {@link AuthenticatedUser} controller parameters from the request attribute set
+ * by {@link BearerTokenFilter}. Fails loudly if a handler asks for a user on a route the
+ * filter does not protect.
  */
 @Configuration(proxyBeanMethods = false)
 class AuthenticatedUserArgumentResolver implements HandlerMethodArgumentResolver, WebMvcConfigurer {
@@ -34,8 +34,8 @@ class AuthenticatedUserArgumentResolver implements HandlerMethodArgumentResolver
 		HttpServletRequest request = webRequest.getNativeRequest(HttpServletRequest.class);
 		Object user = (request != null) ? request.getAttribute(AuthenticatedUser.REQUEST_ATTRIBUTE) : null;
 		if (user == null) {
-			throw new IllegalStateException(
-					"route " + parameter.getMethod() + " needs AuthenticatedUser but is not covered by BearerTokenFilter");
+			throw new IllegalStateException("route " + parameter.getMethod()
+					+ " needs AuthenticatedUser but is not covered by BearerTokenFilter");
 		}
 		return user;
 	}

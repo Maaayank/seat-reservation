@@ -25,9 +25,9 @@ import org.springframework.stereotype.Service;
  * ReserveTransaction                       → the only step that grants seats
  * </pre>
  *
- * The layers only ever decline, and only for seats owned by another user, so
- * an idempotent retry always reaches the transaction and replays (D22). Every
- * outcome is counted in the metrics and logged once as "reserve decided".
+ * The layers only ever decline, and only for seats owned by another user, so an
+ * idempotent retry always reaches the transaction and replays (D22). Every outcome is
+ * counted in the metrics and logged once as "reserve decided".
  */
 @Service
 class ReservationService {
@@ -50,7 +50,10 @@ class ReservationService {
 		this.metrics = metrics;
 	}
 
-	/** Returns a confirmed or replayed reservation; throws {@link ApiException} for every decline. */
+	/**
+	 * Returns a confirmed or replayed reservation; throws {@link ApiException} for every
+	 * decline.
+	 */
 	ReserveOutcome reserve(AuthenticatedUser user, String rawShowId, ReserveRequest request, String headerKey) {
 		UUID showId = ShowService.parseShowId(rawShowId);
 		ShowCatalog.Entry entry = this.catalog.find(showId)
@@ -81,7 +84,8 @@ class ReservationService {
 				ReservationStatus.CONFIRMED);
 		String requestHash = RequestHash.of(show.id(), seats);
 
-		// The claim is held until the sold set is updated, so the next waiter sees the result.
+		// The claim is held until the sold set is updated, so the next waiter sees the
+		// result.
 		try (SeatClaims.Claim claim = this.layers.claim(show.id(), seats.stream().sorted().toList())) {
 			if (this.layers.declineAfterWait(claim, show.id(), seats, user.id())) {
 				return seatTaken();

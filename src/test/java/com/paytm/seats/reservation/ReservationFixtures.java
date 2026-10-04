@@ -68,7 +68,8 @@ final class ReservationFixtures {
 	}
 
 	TestHttp.Response cancel(String token, String reservationId) {
-		return this.http.post("/reservations/" + reservationId + "/cancel", "", Map.of("Authorization", "Bearer " + token));
+		return this.http.post("/reservations/" + reservationId + "/cancel", "",
+				Map.of("Authorization", "Bearer " + token));
 	}
 
 	/** Reserves and returns the reservation id; fails the test if not 201. */
@@ -110,9 +111,9 @@ final class ReservationFixtures {
 	}
 
 	/**
-	 * Checks every invariant the graders test, from the API and from the DB:
-	 * counts add up, each confirmed seat belongs to exactly one confirmed
-	 * reservation of its owner, and per-user quota equals seats owned.
+	 * Checks every invariant the graders test, from the API and from the DB: counts add
+	 * up, each confirmed seat belongs to exactly one confirmed reservation of its owner,
+	 * and per-user quota equals seats owned.
 	 */
 	void assertInvariants(String showId) {
 		JsonNode counts = show(showId).get("counts");
@@ -120,13 +121,12 @@ final class ReservationFixtures {
 			.isEqualTo(counts.get("total").asInt());
 
 		UUID id = UUID.fromString(showId);
-		long confirmedSeats = this.jdbc
-			.sql("SELECT count(*) FROM seats WHERE show_id = ? AND status = 'CONFIRMED'")
+		long confirmedSeats = this.jdbc.sql("SELECT count(*) FROM seats WHERE show_id = ? AND status = 'CONFIRMED'")
 			.param(id)
 			.query(Long.class)
 			.single();
-		long reservedSeats = this.jdbc
-			.sql("SELECT coalesce(sum(cardinality(seat_labels)), 0) FROM reservations WHERE show_id = ? AND status = 'CONFIRMED'")
+		long reservedSeats = this.jdbc.sql(
+				"SELECT coalesce(sum(cardinality(seat_labels)), 0) FROM reservations WHERE show_id = ? AND status = 'CONFIRMED'")
 			.param(id)
 			.query(Long.class)
 			.single();

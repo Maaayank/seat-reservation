@@ -19,9 +19,7 @@ public class ShowRepository {
 		this.jdbc.sql("""
 				INSERT INTO shows (id, name, price_paise, per_user_limit, total_seats)
 				VALUES (?, ?, ?, ?, ?)
-				""")
-			.params(show.id(), show.name(), show.pricePaise(), show.perUserLimit(), show.totalSeats())
-			.update();
+				""").params(show.id(), show.name(), show.pricePaise(), show.perUserLimit(), show.totalSeats()).update();
 	}
 
 	/** Inserts all seats in one round trip. {@code position} keeps the creation order. */
@@ -30,9 +28,7 @@ public class ShowRepository {
 				INSERT INTO seats (show_id, label, position)
 				SELECT ?, t.label, t.pos
 				FROM unnest(?::text[]) WITH ORDINALITY AS t(label, pos)
-				""")
-			.params(showId, labels.toArray(String[]::new))
-			.update();
+				""").params(showId, labels.toArray(String[]::new)).update();
 	}
 
 	public Optional<Show> findById(UUID id) {
@@ -41,8 +37,8 @@ public class ShowRepository {
 				FROM shows WHERE id = ?
 				""")
 			.param(id)
-			.query((rs, n) -> new Show(rs.getObject("id", UUID.class), rs.getString("name"),
-					rs.getLong("price_paise"), rs.getInt("per_user_limit"), rs.getInt("total_seats")))
+			.query((rs, n) -> new Show(rs.getObject("id", UUID.class), rs.getString("name"), rs.getLong("price_paise"),
+					rs.getInt("per_user_limit"), rs.getInt("total_seats")))
 			.optional();
 	}
 
@@ -51,8 +47,8 @@ public class ShowRepository {
 	}
 
 	/**
-	 * All seats of a show in one statement, so the result is one consistent
-	 * snapshot. An expired hold reads as available.
+	 * All seats of a show in one statement, so the result is one consistent snapshot. An
+	 * expired hold reads as available.
 	 */
 	public List<ShowView.SeatView> findSeats(UUID showId) {
 		return this.jdbc.sql("""

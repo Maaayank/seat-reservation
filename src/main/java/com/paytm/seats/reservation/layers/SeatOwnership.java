@@ -5,7 +5,10 @@ import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
-/** L1: the one read the layers make. Outside any transaction, takes no locks, never blocks. */
+/**
+ * L1: the one read the layers make. Outside any transaction, takes no locks, never
+ * blocks.
+ */
 @Repository
 class SeatOwnership {
 
@@ -16,9 +19,8 @@ class SeatOwnership {
 	}
 
 	/**
-	 * Is any of these seats held or confirmed by another user? Seats the
-	 * requester owns do not count, so an idempotent retry still reaches the
-	 * transaction and replays.
+	 * Is any of these seats held or confirmed by another user? Seats the requester owns
+	 * do not count, so an idempotent retry still reaches the transaction and replays.
 	 */
 	boolean anyTakenByOther(UUID showId, List<String> labels, String userId) {
 		return this.jdbc.sql("""

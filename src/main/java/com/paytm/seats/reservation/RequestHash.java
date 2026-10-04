@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Fingerprint of what a reserve request asks for: the show and the set of
- * seats. Seat order does not matter. Same key + different fingerprint → 409.
+ * Fingerprint of what a reserve request asks for: the show and the set of seats. Seat
+ * order does not matter. Same key + different fingerprint → 409.
  */
 final class RequestHash {
 

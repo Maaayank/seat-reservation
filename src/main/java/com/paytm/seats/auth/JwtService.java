@@ -18,8 +18,8 @@ import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
- * Issues and verifies HS256 user tokens. The user id is the {@code sub} claim
- * and is the only identity the service trusts.
+ * Issues and verifies HS256 user tokens. The user id is the {@code sub} claim and is the
+ * only identity the service trusts.
  */
 @Component
 public class JwtService {
@@ -66,8 +66,8 @@ public class JwtService {
 	}
 
 	/**
-	 * Returns the user id of a valid token. Empty for any token that is
-	 * malformed, not HS256, wrongly signed, expired, or has no subject.
+	 * Returns the user id of a valid token. Empty for any token that is malformed, not
+	 * HS256, wrongly signed, expired, or has no subject.
 	 */
 	public Optional<String> verify(String token) {
 		try {

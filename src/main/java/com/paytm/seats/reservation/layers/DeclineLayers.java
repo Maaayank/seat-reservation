@@ -10,16 +10,15 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
- * Fast-decline layers in front of the reserve transaction
- * (docs/DISCOVERY.md §6.2). They only ever decline, and only for seats owned by
- * another user; they never grant a seat. With every layer disabled the service
- * is still correct: the transaction alone decides.
+ * Fast-decline layers in front of the reserve transaction (docs/DISCOVERY.md §6.2). They
+ * only ever decline, and only for seats owned by another user; they never grant a seat.
+ * With every layer disabled the service is still correct: the transaction alone decides.
  *
  * <ul>
  * <li>L2 {@link SoldSeats}: in-memory hit, no DB work.</li>
  * <li>L1 read: one non-locking query; never blocks.</li>
- * <li>L3 {@link SeatClaims}: one in-flight DB attempt per seat; waiters re-check
- * L2 when their turn comes, so the losers of a hot seat never touch the DB.</li>
+ * <li>L3 {@link SeatClaims}: one in-flight DB attempt per seat; waiters re-check L2 when
+ * their turn comes, so the losers of a hot seat never touch the DB.</li>
  * </ul>
  */
 @Component
@@ -45,9 +44,8 @@ public class DeclineLayers {
 		this.sold = sold;
 		this.claims = claims;
 		this.ownership = ownership;
-		this.declines = Map.of("l2_sold_set", counter(registry, "l2_sold_set"), "l1_read",
-				counter(registry, "l1_read"), "l3_waiter", counter(registry, "l3_waiter"), "db",
-				counter(registry, "db"));
+		this.declines = Map.of("l2_sold_set", counter(registry, "l2_sold_set"), "l1_read", counter(registry, "l1_read"),
+				"l3_waiter", counter(registry, "l3_waiter"), "db", counter(registry, "db"));
 		this.claimTimeouts = Counter.builder("reservations.seat.claim.timeouts")
 			.description("L3 waits that timed out and fell through to the DB")
 			.register(registry);

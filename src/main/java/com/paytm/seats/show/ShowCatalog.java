@@ -8,9 +8,9 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
- * Read-through cache of immutable show data (price, limit, seat labels). Lets
- * the reserve path validate a request without a DB round trip. Safe to cache:
- * shows and their seat labels never change after creation.
+ * Read-through cache of immutable show data (price, limit, seat labels). Lets the reserve
+ * path validate a request without a DB round trip. Safe to cache: shows and their seat
+ * labels never change after creation.
  */
 @Component
 public class ShowCatalog {

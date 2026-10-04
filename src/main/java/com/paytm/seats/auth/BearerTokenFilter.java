@@ -19,9 +19,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Requires a valid bearer token on user routes. On success the user is stored
- * as a request attribute (read via {@link AuthenticatedUser} parameters) and
- * in the MDC as {@code user_id}. Missing or invalid token → 401.
+ * Requires a valid bearer token on user routes. On success the user is stored as a
+ * request attribute (read via {@link AuthenticatedUser} parameters) and in the MDC as
+ * {@code user_id}. Missing or invalid token → 401.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)

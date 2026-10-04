@@ -9,7 +9,9 @@ sealed interface ReserveOutcome {
 	record Confirmed(ReservationView reservation) implements ReserveOutcome {
 	}
 
-	/** Same key, same request as an earlier success: the original reservation, unchanged. */
+	/**
+	 * Same key, same request as an earlier success: the original reservation, unchanged.
+	 */
 	record Replayed(ReservationView reservation) implements ReserveOutcome {
 	}
 

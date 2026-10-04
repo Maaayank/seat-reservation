@@ -7,8 +7,8 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 /**
- * SQL for reserve and cancel. Each method is one statement and must run inside
- * the caller's transaction, in the documented lock order.
+ * SQL for reserve and cancel. Each method is one statement and must run inside the
+ * caller's transaction, in the documented lock order.
  */
 @Repository
 class ReservationRepository {
@@ -22,9 +22,9 @@ class ReservationRepository {
 	// ---- reserve ------------------------------------------------------------------
 
 	/**
-	 * Claims the key; false if it already exists. If a parallel transaction holds
-	 * the same key, Postgres makes this insert wait until that transaction ends,
-	 * so the caller then sees its final result.
+	 * Claims the key; false if it already exists. If a parallel transaction holds the
+	 * same key, Postgres makes this insert wait until that transaction ends, so the
+	 * caller then sees its final result.
 	 */
 	boolean claimIdempotencyKey(String userId, String key, String requestHash, UUID showId) {
 		return this.jdbc.sql("""
@@ -42,9 +42,9 @@ class ReservationRepository {
 	}
 
 	/**
-	 * Adds {@code seats} to the user's count for the show, only if the result
-	 * stays within {@code limit}; false otherwise. The row lock serialises one
-	 * user's parallel reserves for one show. Caller guarantees {@code seats <= limit}.
+	 * Adds {@code seats} to the user's count for the show, only if the result stays
+	 * within {@code limit}; false otherwise. The row lock serialises one user's parallel
+	 * reserves for one show. Caller guarantees {@code seats <= limit}.
 	 */
 	boolean addToQuota(UUID showId, String userId, int seats, int limit) {
 		return this.jdbc.sql("""
@@ -57,9 +57,9 @@ class ReservationRepository {
 	}
 
 	/**
-	 * Locks the seat rows in label order and returns their latest state. After a
-	 * lock wait, READ COMMITTED re-reads the newest row version, so a seat just
-	 * confirmed by the lock holder is seen as taken.
+	 * Locks the seat rows in label order and returns their latest state. After a lock
+	 * wait, READ COMMITTED re-reads the newest row version, so a seat just confirmed by
+	 * the lock holder is seen as taken.
 	 */
 	List<LockedSeat> lockSeats(UUID showId, String[] labels) {
 		return this.jdbc.sql("""
@@ -130,9 +130,9 @@ class ReservationRepository {
 	}
 
 	/**
-	 * Frees only the seats that still point at this reservation, locking them in
-	 * label order (same order as reserve). A seat that now belongs to someone
-	 * else is never touched. Returns the number of seats freed.
+	 * Frees only the seats that still point at this reservation, locking them in label
+	 * order (same order as reserve). A seat that now belongs to someone else is never
+	 * touched. Returns the number of seats freed.
 	 */
 	int releaseSeats(UUID showId, UUID reservationId) {
 		return this.jdbc.sql("""

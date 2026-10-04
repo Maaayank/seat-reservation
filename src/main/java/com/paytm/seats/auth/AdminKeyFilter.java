@@ -19,8 +19,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Guards admin endpoints with the {@code X-Admin-Key} header. Compares in
- * constant time. Missing or wrong key → 403 {@code forbidden}.
+ * Guards admin endpoints with the {@code X-Admin-Key} header. Compares in constant time.
+ * Missing or wrong key → 403 {@code forbidden}.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
@@ -54,7 +54,8 @@ public class AdminKeyFilter extends OncePerRequestFilter {
 		}
 		response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-		this.mapper.writeValue(response.getOutputStream(), ErrorResponse.of(ErrorCode.FORBIDDEN, "valid X-Admin-Key required"));
+		this.mapper.writeValue(response.getOutputStream(),
+				ErrorResponse.of(ErrorCode.FORBIDDEN, "valid X-Admin-Key required"));
 	}
 
 }

@@ -17,21 +17,23 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Assigns a correlation id to every request. Accepts a well-formed client
- * {@code X-Request-Id}, otherwise generates one. The id goes into the MDC (so
- * every log line carries it) and back to the client in the response header.
- * Also writes one access log line per request.
+ * {@code X-Request-Id}, otherwise generates one. The id goes into the MDC (so every log
+ * line carries it) and back to the client in the response header. Also writes one access
+ * log line per request.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class RequestIdFilter extends OncePerRequestFilter {
 
 	public static final String HEADER = "X-Request-Id";
+
 	public static final String MDC_KEY = "request_id";
 
 	/** Set by the bearer token filter; cleared here after the access log line. */
 	private static final String USER_MDC_KEY = "user_id";
 
 	private static final Pattern VALID_ID = Pattern.compile("[A-Za-z0-9._-]{1,64}");
+
 	private static final Logger ACCESS_LOG = LoggerFactory.getLogger("access");
 
 	@Override

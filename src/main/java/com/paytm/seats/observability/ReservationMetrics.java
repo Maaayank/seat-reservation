@@ -10,12 +10,12 @@ import org.springframework.stereotype.Component;
  * Business counters required by the problem statement:
  * <ul>
  * <li>{@code reservations_confirmed_total{show_id}}</li>
- * <li>{@code reservations_declined_total{show_id,reason}}: seat_taken,
- * per_user_limit, idempotent_replay, idempotency_key_reuse, invalid</li>
+ * <li>{@code reservations_declined_total{show_id,reason}}: seat_taken, per_user_limit,
+ * idempotent_replay, idempotency_key_reuse, invalid</li>
  * <li>{@code reservations_cancelled_total{show_id}}</li>
  * </ul>
- * Counters live in memory and reset on restart. The DB-backed {@link SeatGauges}
- * are the source of truth for reconciliation.
+ * Counters live in memory and reset on restart. The DB-backed {@link SeatGauges} are the
+ * source of truth for reconciliation.
  */
 @Component
 public class ReservationMetrics {
@@ -34,7 +34,10 @@ public class ReservationMetrics {
 		this.gauges.markDirty();
 	}
 
-	/** A retry that returned the original reservation. Counted as a decline: nothing new was sold. */
+	/**
+	 * A retry that returned the original reservation. Counted as a decline: nothing new
+	 * was sold.
+	 */
 	public void replayed(UUID showId) {
 		declined(showId, "idempotent_replay");
 	}

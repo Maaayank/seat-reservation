@@ -13,8 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Owner-only, idempotent cancel. One transaction that locks, in this order
- * (same as reserve, so the two cannot deadlock, D20):
+ * Owner-only, idempotent cancel. One transaction that locks, in this order (same as
+ * reserve, so the two cannot deadlock, D20):
  *
  * <ol>
  * <li>the reservation row (parallel cancels of it queue here);</li>
@@ -22,8 +22,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <li>the seat rows still pointing at this reservation, by label (freed).</li>
  * </ol>
  *
- * A seat that already belongs to someone else is never released. Another
- * user's reservation is reported as not found, so its existence is not revealed.
+ * A seat that already belongs to someone else is never released. Another user's
+ * reservation is reported as not found, so its existence is not revealed.
  */
 @Service
 class CancelService {
@@ -48,7 +48,8 @@ class CancelService {
 
 	ReservationView cancel(AuthenticatedUser user, String rawReservationId) {
 		UUID reservationId = parseId(rawReservationId);
-		Cancelled result = Objects.requireNonNull(this.transactions.execute((tx) -> cancelInTransaction(user, reservationId)));
+		Cancelled result = Objects
+			.requireNonNull(this.transactions.execute((tx) -> cancelInTransaction(user, reservationId)));
 		ReservationView reservation = result.reservation();
 		if (result.changed()) {
 			this.layers.released(reservation.showId(), reservation.seats(), reservationId);

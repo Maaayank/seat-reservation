@@ -46,7 +46,8 @@ public final class TestHttp {
 				}
 				catch (ConnectException ex) {
 					// The connection was refused, so the server never saw the request:
-					// safe to retry. Happens on Windows when hundreds of sockets open at once.
+					// safe to retry. Happens on Windows when hundreds of sockets open at
+					// once.
 					if (attempt == 5) {
 						throw ex;
 					}

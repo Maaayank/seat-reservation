@@ -11,7 +11,8 @@ public record ReservationView(UUID reservationId, UUID showId, String userId, Li
 		ReservationStatus status) {
 
 	ReservationView withStatus(ReservationStatus newStatus) {
-		return new ReservationView(this.reservationId, this.showId, this.userId, this.seats, this.amountPaise, newStatus);
+		return new ReservationView(this.reservationId, this.showId, this.userId, this.seats, this.amountPaise,
+				newStatus);
 	}
 
 }

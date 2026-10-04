@@ -18,9 +18,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * HTTP client for the service. A semaphore caps requests in flight. A refused
- * connect is retried (the server never saw the request); a timeout is reported
- * as an unknown outcome, never as a server error.
+ * HTTP client for the service. A semaphore caps requests in flight. A refused connect is
+ * retried (the server never saw the request); a timeout is reported as an unknown
+ * outcome, never as a server error.
  */
 final class Api {
 
@@ -122,7 +122,9 @@ final class Api {
 		}
 		catch (IOException ex) {
 			String message = (ex.getMessage() != null) ? ex.getMessage() : "";
-			return Result.clientError("io: " + ex.getClass().getSimpleName() + " " + message.substring(0, Math.min(60, message.length())), elapsedMs(start));
+			return Result.clientError(
+					"io: " + ex.getClass().getSimpleName() + " " + message.substring(0, Math.min(60, message.length())),
+					elapsedMs(start));
 		}
 		catch (InterruptedException ex) {
 			Thread.currentThread().interrupt();

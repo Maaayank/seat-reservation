@@ -27,8 +27,8 @@ import java.util.stream.Collectors;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Reproduces the on-sale stampede against a running service and checks every
- * invariant from the problem statement.
+ * Reproduces the on-sale stampede against a running service and checks every invariant
+ * from the problem statement.
  *
  * <pre>
  * java -jar burst.jar &lt;BASE_URL&gt; &lt;ADMIN_KEY&gt; [--profile smoke|full] [--max-in-flight N]
@@ -37,9 +37,9 @@ import tools.jackson.databind.JsonNode;
  * Scenarios, on one fresh show:
  * <ol>
  * <li>Setup: wait for readiness, create the show, mint tokens.</li>
- * <li>On-sale wave, all at once: hot-seat storm (many users, same seat), skewed
- * stampede, and idempotent retry groups (same key sent in parallel). An
- * invariant poller reads the show every 200 ms during the wave.</li>
+ * <li>On-sale wave, all at once: hot-seat storm (many users, same seat), skewed stampede,
+ * and idempotent retry groups (same key sent in parallel). An invariant poller reads the
+ * show every 200 ms during the wave.</li>
  * <li>Same key, different seats -> 409.</li>
  * <li>Per-user limit: one user, 10 parallel reserves, limit 4.</li>
  * <li>Spoof: a body user_id is ignored; another user cannot cancel.</li>
@@ -224,15 +224,17 @@ public final class Burst {
 		}
 		Collections.shuffle(shots, this.random);
 
-		System.out.printf(Locale.ROOT, "  .. on-sale wave: %d requests (%d hot seats x %d users, %d retry groups x %d, %d stampede)%n",
+		System.out.printf(Locale.ROOT,
+				"  .. on-sale wave: %d requests (%d hot seats x %d users, %d retry groups x %d, %d stampede)%n",
 				shots.size(), this.profile.hotSeats, this.profile.hotUsers, this.profile.idemGroups,
 				this.profile.idemRetries, this.profile.stampede);
 
 		Poller poller = new Poller();
 		Thread pollerThread = Thread.ofVirtual().start(poller);
-		List<Callable<Api.Result>> tasks = shots.stream()
-			.<Callable<Api.Result>>map((s) -> () -> this.api.reserve(s.token(), this.showId, List.of(s.seat()), s.key(),
-					Map.of()))
+		List<Callable<Api.Result>> tasks = shots
+			.stream().<Callable<Api
+					.Result>>map(
+							(s) -> () -> this.api.reserve(s.token(), this.showId, List.of(s.seat()), s.key(), Map.of()))
 			.toList();
 		long start = System.nanoTime();
 		List<Api.Result> results = concurrently(tasks);
@@ -289,7 +291,8 @@ public final class Burst {
 			}
 			Map<String, Long> dist = Report.countBy(forSeat, Api.Result::outcome);
 			long created = dist.getOrDefault("201", 0L);
-			// Requests without an HTTP response are reported separately (client-side); judge the rest.
+			// Requests without an HTTP response are reported separately (client-side);
+			// judge the rest.
 			boolean clean = forSeat.stream()
 				.filter((r) -> r.clientError() == null)
 				.allMatch((r) -> r.status() == 201 || r.outcome().equals("409:seat_taken"));
@@ -318,13 +321,16 @@ public final class Burst {
 				groups.size() + " groups: " + wonGroups.size() + " won once (rest replayed), "
 						+ (groups.size() - wonGroups.size() - badGroups) + " lost cleanly"
 						+ ((badGroups > 0) ? ", " + badGroups + " MIXED" : ""));
-		this.report.check("Invariant during wave (poller every 200 ms)", poller.breaches.isEmpty() && poller.samples.get() > 0,
-				poller.samples.get() + " samples, " + poller.breaches.size() + " breaches"
-						+ (poller.breaches.isEmpty() ? "" : ": " + poller.breaches.subList(0, Math.min(3, poller.breaches.size()))));
+		this.report.check("Invariant during wave (poller every 200 ms)",
+				poller.breaches.isEmpty() && poller.samples.get() > 0,
+				poller.samples.get() + " samples, " + poller.breaches.size() + " breaches" + (poller.breaches.isEmpty()
+						? "" : ": " + poller.breaches.subList(0, Math.min(3, poller.breaches.size()))));
 		return new Wave(shots, results, wonGroups, winnerTokens);
 	}
 
-	/** Reads the show every 200 ms while the wave runs; any count mismatch is a breach. */
+	/**
+	 * Reads the show every 200 ms while the wave runs; any count mismatch is a breach.
+	 */
 	private final class Poller implements Runnable {
 
 		final AtomicBoolean stop = new AtomicBoolean();
@@ -383,10 +389,12 @@ public final class Burst {
 			}
 		}
 		this.allReserves.addAll(results);
-		this.report.scenario("same key, other seats", results, results.stream().mapToDouble(Api.Result::latencyMs).sum());
-		boolean ok = !results.isEmpty() && results.stream().allMatch((r) -> r.outcome().equals("409:idempotency_key_reuse"));
-		this.report.check("Same key + different seats -> 409", ok,
-				results.isEmpty() ? "no group won a seat; nothing to probe" : Report.countBy(results, Api.Result::outcome).toString());
+		this.report.scenario("same key, other seats", results,
+				results.stream().mapToDouble(Api.Result::latencyMs).sum());
+		boolean ok = !results.isEmpty()
+				&& results.stream().allMatch((r) -> r.outcome().equals("409:idempotency_key_reuse"));
+		this.report.check("Same key + different seats -> 409", ok, results.isEmpty()
+				? "no group won a seat; nothing to probe" : Report.countBy(results, Api.Result::outcome).toString());
 	}
 
 	// ---- 4. per-user limit ------------------------------------------------------------
@@ -400,8 +408,8 @@ public final class Burst {
 			for (int i = 0; i < 10; i++) {
 				String label = lastRowSeat(seat++);
 				seatOf.add(label);
-				tasks.add(() -> this.api.reserve(user.getValue(), this.showId, List.of(label), UUID.randomUUID().toString(),
-						Map.of()));
+				tasks.add(() -> this.api.reserve(user.getValue(), this.showId, List.of(label),
+						UUID.randomUUID().toString(), Map.of()));
 			}
 		}
 		long start = System.nanoTime();
@@ -415,7 +423,13 @@ public final class Burst {
 			long won = mine.stream().filter((r) -> r.status() == 201).count();
 			long limited = mine.stream().filter((r) -> r.outcome().equals("409:per_user_limit")).count();
 			ok &= won == LIMIT && limited == 10 - LIMIT;
-			detail.append("user").append(u + 1).append(": ").append(won).append(" ok, ").append(limited).append(" limited; ");
+			detail.append("user")
+				.append(u + 1)
+				.append(": ")
+				.append(won)
+				.append(" ok, ")
+				.append(limited)
+				.append(" limited; ");
 		}
 		for (int i = 0; i < results.size(); i++) {
 			if (results.get(i).status() == 201) {
@@ -425,20 +439,21 @@ public final class Burst {
 		this.report.check("Per-user limit: 10 parallel, limit 4 -> 4 held", ok, detail.toString().trim());
 	}
 
-	// ---- 5. spoofed identity ------------------------------------------------------------
+	// ---- 5. spoofed identity
+	// ------------------------------------------------------------
 
 	private void spoof(Map<String, String> tokens) {
 		List<Map.Entry<String, String>> pair = takeUsers(tokens, this.profile.waveUsers() + this.profile.limitUsers, 2);
 		Map.Entry<String, String> attacker = pair.get(0);
 		Map.Entry<String, String> victim = pair.get(1);
 		String seat = lastRowSeat(this.profile.limitUsers * 10 + 1);
-		Api.Result reserved = this.api.reserve(attacker.getValue(), this.showId, List.of(seat), UUID.randomUUID().toString(),
-				Map.of("user_id", victim.getKey()));
+		Api.Result reserved = this.api.reserve(attacker.getValue(), this.showId, List.of(seat),
+				UUID.randomUUID().toString(), Map.of("user_id", victim.getKey()));
 		this.allReserves.add(reserved);
 		boolean actsAsToken = reserved.status() == 201
 				&& reserved.json().get("user_id").asString().equals(attacker.getKey());
-		this.report.check("Spoofed body user_id is ignored", actsAsToken,
-				reserved.outcome() + ", user_id=" + ((reserved.status() == 201) ? reserved.json().get("user_id").asString() : "-"));
+		this.report.check("Spoofed body user_id is ignored", actsAsToken, reserved.outcome() + ", user_id="
+				+ ((reserved.status() == 201) ? reserved.json().get("user_id").asString() : "-"));
 		if (reserved.status() != 201) {
 			return;
 		}
@@ -450,12 +465,13 @@ public final class Burst {
 				"other user -> " + stolen.outcome() + ", owner -> " + own.outcome());
 	}
 
-	// ---- 6. cancel racing rebookers -----------------------------------------------------
+	// ---- 6. cancel racing rebookers
+	// -----------------------------------------------------
 
 	private void cancelRacingRebookers(Map<String, String> tokens, Wave wave) throws Exception {
 		List<String> seats = wave.winnerTokens().keySet().stream().sorted().limit(this.profile.cancelSeats).toList();
-		List<Map.Entry<String, String>> rebookers = takeUsers(tokens, this.profile.waveUsers() + this.profile.limitUsers + 2,
-				seats.size() * this.profile.rebookers);
+		List<Map.Entry<String, String>> rebookers = takeUsers(tokens,
+				this.profile.waveUsers() + this.profile.limitUsers + 2, seats.size() * this.profile.rebookers);
 		List<Callable<Api.Result>> tasks = new ArrayList<>();
 		List<String> taskSeat = new ArrayList<>();
 		List<Boolean> isCancel = new ArrayList<>();
@@ -468,7 +484,8 @@ public final class Burst {
 			isCancel.add(true);
 			for (int r = 0; r < this.profile.rebookers; r++) {
 				String token = rebookers.get(next++).getValue();
-				tasks.add(() -> this.api.reserve(token, this.showId, List.of(seat), UUID.randomUUID().toString(), Map.of()));
+				tasks.add(() -> this.api.reserve(token, this.showId, List.of(seat), UUID.randomUUID().toString(),
+						Map.of()));
 				taskSeat.add(seat);
 				isCancel.add(false);
 			}
@@ -506,7 +523,8 @@ public final class Burst {
 				seats.size() + " seats, " + rebookWins.size() + " rebooked, 5xx=" + fivexx);
 	}
 
-	// ---- 7. final reconciliation ---------------------------------------------------------
+	// ---- 7. final reconciliation
+	// ---------------------------------------------------------
 
 	private void finalReconciliation() throws InterruptedException {
 		Api.Result show = this.api.get("/shows/" + this.showId);
@@ -516,8 +534,8 @@ public final class Burst {
 		int held = counts.get("held").asInt();
 		int confirmed = counts.get("confirmed").asInt();
 		int total = counts.get("total").asInt();
-		this.report.check("available + held + confirmed == total", available + held + confirmed == total,
-				available + " + " + held + " + " + confirmed + " = " + (available + held + confirmed) + " (total " + total + ")");
+		this.report.check("available + held + confirmed == total", available + held + confirmed == total, available
+				+ " + " + held + " + " + confirmed + " = " + (available + held + confirmed) + " (total " + total + ")");
 
 		Set<String> apiConfirmed = new HashSet<>();
 		body.get("seats").forEach((s) -> {
@@ -532,13 +550,15 @@ public final class Burst {
 		unexpected.removeAll(this.uncertainSeats);
 		this.report.check("Confirmed seats match what clients were told", missing.isEmpty() && unexpected.isEmpty(),
 				apiConfirmed.size() + " confirmed; missing " + missing.size() + ", unexpected " + unexpected.size()
-						+ (this.uncertainSeats.isEmpty() ? "" : " (" + this.uncertainSeats.size() + " seats had timeouts)"));
+						+ (this.uncertainSeats.isEmpty() ? ""
+								: " (" + this.uncertainSeats.size() + " seats had timeouts)"));
 
 		long fivexx = this.allReserves.stream().filter((r) -> r.status() >= 500).count()
 				+ this.allCancels.stream().filter((r) -> r.status() >= 500).count();
 		long clientErrors = this.allReserves.stream().filter((r) -> r.clientError() != null).count();
 		this.report.check("Zero 5xx across the whole run", fivexx == 0, fivexx + " responses >= 500");
-		this.report.check("Client-side errors (timeouts, refused)", clientErrors == 0 ? Report.Verdict.PASS : Report.Verdict.WARN,
+		this.report.check("Client-side errors (timeouts, refused)",
+				clientErrors == 0 ? Report.Verdict.PASS : Report.Verdict.WARN,
 				clientErrors + " requests without an HTTP response (not server errors)");
 		reconcileMetrics(apiConfirmed.size());
 	}
@@ -568,17 +588,25 @@ public final class Burst {
 			return;
 		}
 		Map<String, long[]> pairs = new LinkedHashMap<>();
-		pairs.put("reservations_confirmed_total", new long[] { metric(metrics, "reservations_confirmed_total", null), created });
-		pairs.put("declined{seat_taken}", new long[] { metric(metrics, "reservations_declined_total", "reason=\"seat_taken\""), seatTaken });
-		pairs.put("declined{per_user_limit}", new long[] { metric(metrics, "reservations_declined_total", "reason=\"per_user_limit\""), limited });
-		pairs.put("declined{idempotent_replay}", new long[] { metric(metrics, "reservations_declined_total", "reason=\"idempotent_replay\""), replays });
-		// The spoof scenario's cancel is not part of a counted race but is counted by the service.
-		pairs.put("reservations_cancelled_total", new long[] { metric(metrics, "reservations_cancelled_total", null), cancelled });
-		pairs.put("seats{confirmed} gauge", new long[] { metric(metrics, "seats", "state=\"confirmed\""), apiConfirmed });
+		pairs.put("reservations_confirmed_total",
+				new long[] { metric(metrics, "reservations_confirmed_total", null), created });
+		pairs.put("declined{seat_taken}",
+				new long[] { metric(metrics, "reservations_declined_total", "reason=\"seat_taken\""), seatTaken });
+		pairs.put("declined{per_user_limit}",
+				new long[] { metric(metrics, "reservations_declined_total", "reason=\"per_user_limit\""), limited });
+		pairs.put("declined{idempotent_replay}",
+				new long[] { metric(metrics, "reservations_declined_total", "reason=\"idempotent_replay\""), replays });
+		// The spoof scenario's cancel is not part of a counted race but is counted by the
+		// service.
+		pairs.put("reservations_cancelled_total",
+				new long[] { metric(metrics, "reservations_cancelled_total", null), cancelled });
+		pairs.put("seats{confirmed} gauge",
+				new long[] { metric(metrics, "seats", "state=\"confirmed\""), apiConfirmed });
 		boolean uncertain = !this.uncertainSeats.isEmpty();
 		pairs.forEach((name, v) -> {
 			boolean ok = v[0] == v[1];
-			this.report.check("Metric " + name, ok ? Report.Verdict.PASS : (uncertain ? Report.Verdict.WARN : Report.Verdict.FAIL),
+			this.report.check("Metric " + name,
+					ok ? Report.Verdict.PASS : (uncertain ? Report.Verdict.WARN : Report.Verdict.FAIL),
 					"metric " + v[0] + " vs observed " + v[1]);
 		});
 	}
@@ -590,7 +618,8 @@ public final class Burst {
 		boolean found = false;
 		while (m.find()) {
 			String labels = m.group(1);
-			if (labels.contains("show_id=\"" + this.showId + "\"") && (labelFilter == null || labels.contains(labelFilter))) {
+			if (labels.contains("show_id=\"" + this.showId + "\"")
+					&& (labelFilter == null || labels.contains(labelFilter))) {
 				sum += Double.parseDouble(m.group(2));
 				found = true;
 			}
@@ -608,7 +637,9 @@ public final class Burst {
 		return tokens.entrySet().stream().skip(skip).limit(count).toList();
 	}
 
-	/** Starts every task at the same instant on virtual threads; results in task order. */
+	/**
+	 * Starts every task at the same instant on virtual threads; results in task order.
+	 */
 	private static <T> List<T> concurrently(List<Callable<T>> tasks) throws Exception {
 		CountDownLatch gate = new CountDownLatch(1);
 		try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {

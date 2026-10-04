@@ -18,15 +18,14 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Uses its own database container so it can stop it without affecting other
- * tests. Readiness must fail closed (503) while liveness stays up (200).
+ * Uses its own database container so it can stop it without affecting other tests.
+ * Readiness must fail closed (503) while liveness stays up (200).
  */
 @Testcontainers
 @DirtiesContext
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 		properties = { "spring.datasource.hikari.connection-timeout=1000",
-			"seats.admin-api-key=" + IntegrationTest.ADMIN_KEY,
-			"seats.jwt-secret=" + IntegrationTest.JWT_SECRET })
+				"seats.admin-api-key=" + IntegrationTest.ADMIN_KEY, "seats.jwt-secret=" + IntegrationTest.JWT_SECRET })
 class ReadinessFailsClosedTests {
 
 	@Container

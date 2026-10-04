@@ -30,8 +30,8 @@ public class AuthController {
 	}
 
 	/**
-	 * Admin only (X-Admin-Key, enforced by AdminKeyFilter). Mints one token per
-	 * user id in a single call, so a load test can create thousands of users.
+	 * Admin only (X-Admin-Key, enforced by AdminKeyFilter). Mints one token per user id
+	 * in a single call, so a load test can create thousands of users.
 	 */
 	@PostMapping("/tokens")
 	public TokensResponse mint(@Valid @RequestBody TokensRequest request) {

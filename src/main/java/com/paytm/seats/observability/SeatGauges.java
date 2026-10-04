@@ -18,15 +18,17 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * {@code seats{show_id,state}} and {@code seats_capacity{show_id}} gauges, read
- * from the DB so they always reconcile with {@code GET /shows/{id}}.
+ * {@code seats{show_id,state}} and {@code seats_capacity{show_id}} gauges, read from the
+ * DB so they always reconcile with {@code GET /shows/{id}}.
  *
- * <p>The DB is queried only when something changed (a reserve, cancel or new
- * show marks the gauges dirty), at most once per second, plus a slow safety
- * refresh. An idle service sends no queries, so a serverless DB can sleep.
+ * <p>
+ * The DB is queried only when something changed (a reserve, cancel or new show marks the
+ * gauges dirty), at most once per second, plus a slow safety refresh. An idle service
+ * sends no queries, so a serverless DB can sleep.
  *
- * <p>Each series is registered once and updated in place. (Re-registering on
- * every refresh would let a scrape that lands mid-refresh miss series.)
+ * <p>
+ * Each series is registered once and updated in place. (Re-registering on every refresh
+ * would let a scrape that lands mid-refresh miss series.)
  */
 @Component
 public class SeatGauges {

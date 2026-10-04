@@ -28,8 +28,7 @@ class ShowApiTests {
 
 	@Test
 	void createsShowWithAllSeatsAvailable() {
-		TestHttp.Response response = this.http.post("/shows",
-				"""
+		TestHttp.Response response = this.http.post("/shows", """
 				{"name":"friday-night","seats":["A1","A2","A10"],"price_paise":25000}
 				""", ADMIN);
 
@@ -57,8 +56,8 @@ class ShowApiTests {
 		assertThat(response.status()).isEqualTo(200);
 		JsonNode body = response.json();
 		assertThat(body.get("per_user_limit").asInt()).isEqualTo(2);
-		assertThat(body.get("seats").valueStream().map((s) -> s.get("label").asString()))
-			.containsExactly("A1", "A2", "A10", "B1");
+		assertThat(body.get("seats").valueStream().map((s) -> s.get("label").asString())).containsExactly("A1", "A2",
+				"A10", "B1");
 		assertCounts(body, 4, 0, 0, 4);
 	}
 

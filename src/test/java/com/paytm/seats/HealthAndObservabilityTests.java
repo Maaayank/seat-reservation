@@ -48,9 +48,7 @@ class HealthAndObservabilityTests {
 	@Test
 	void replacesMalformedRequestId() throws Exception {
 		HttpResponse<String> response = get("/livez", "bad id with spaces");
-		assertThat(response.headers().firstValue("X-Request-Id")).isPresent()
-			.get()
-			.isNotEqualTo("bad id with spaces");
+		assertThat(response.headers().firstValue("X-Request-Id")).isPresent().get().isNotEqualTo("bad id with spaces");
 	}
 
 	private HttpResponse<String> get(String path, String requestId) throws IOException, InterruptedException {

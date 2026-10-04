@@ -17,8 +17,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
- * With layers on, the losers of a hot-seat storm are declined in the app, not
- * by the database: only a handful of requests reach the transaction.
+ * With layers on, the losers of a hot-seat storm are declined in the app, not by the
+ * database: only a handful of requests reach the transaction.
  */
 @IntegrationTest
 class DeclineLayersEffectTests {

@@ -51,7 +51,8 @@ class SeatClaimsTests {
 				}
 			});
 			tasks.add(() -> {
-				try (SeatClaims.Claim claim = this.claims.acquire(this.show, List.of("A2", "A3"), Duration.ofSeconds(10))) {
+				try (SeatClaims.Claim claim = this.claims.acquire(this.show, List.of("A2", "A3"),
+						Duration.ofSeconds(10))) {
 					return claim.acquired();
 				}
 			});

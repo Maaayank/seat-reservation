@@ -30,8 +30,9 @@ final class Report {
 		StringBuilder line = new StringBuilder();
 		line.append(String.format(Locale.ROOT, "%n  %-22s %6d requests in %7.0f ms (%.0f req/s)", name, results.size(),
 				wallMs, results.size() / Math.max(wallMs / 1000.0, 0.001)));
-		line.append(String.format(Locale.ROOT, "%n  %-22s latency p50 %.0f ms | p95 %.0f ms | p99 %.0f ms | max %.0f ms",
-				"", pct(latencies, 0.50), pct(latencies, 0.95), pct(latencies, 0.99), pct(latencies, 1.0)));
+		line.append(
+				String.format(Locale.ROOT, "%n  %-22s latency p50 %.0f ms | p95 %.0f ms | p99 %.0f ms | max %.0f ms",
+						"", pct(latencies, 0.50), pct(latencies, 0.95), pct(latencies, 0.99), pct(latencies, 1.0)));
 		outcomes.forEach((outcome, count) -> line
 			.append(String.format(Locale.ROOT, "%n  %-22s   %-30s %6d", "", outcome, count)));
 		this.scenarios.add(line.toString());

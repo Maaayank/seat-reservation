@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
- * Maps exceptions to the error contract. Domain outcomes and bad requests are
- * 4xx. Anything unexpected is a 500 and is logged with its stack trace.
+ * Maps exceptions to the error contract. Domain outcomes and bad requests are 4xx.
+ * Anything unexpected is a 500 and is logged with its stack trace.
  */
 @RestControllerAdvice
 public class ApiExceptionHandler {

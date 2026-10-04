@@ -103,7 +103,8 @@ class CancelTests {
 
 		assertThat(this.fx.cancel(alice, rid).status()).isEqualTo(200);
 
-		String seatReservation = this.jdbc.sql("SELECT reservation_id::text FROM seats WHERE show_id = ? AND label = 'S1'")
+		String seatReservation = this.jdbc
+			.sql("SELECT reservation_id::text FROM seats WHERE show_id = ? AND label = 'S1'")
 			.param(UUID.fromString(this.showId))
 			.query(String.class)
 			.single();

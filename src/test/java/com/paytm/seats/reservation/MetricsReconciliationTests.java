@@ -21,8 +21,8 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Metrics must reconcile with the API: counters match what clients saw and
- * the seats gauge matches GET /shows/{id}.
+ * Metrics must reconcile with the API: counters match what clients saw and the seats
+ * gauge matches GET /shows/{id}.
  */
 @IntegrationTest
 class MetricsReconciliationTests {
@@ -52,13 +52,15 @@ class MetricsReconciliationTests {
 		String key = UUID.randomUUID().toString();
 		assertThat(this.fx.reserve(alice, showId, List.of("S1"), key).status()).isEqualTo(201);
 		assertThat(this.fx.reserve(alice, showId, List.of("S1"), key).status()).isEqualTo(201); // replay
-		assertThat(this.fx.reserve(alice, showId, List.of("S2"), key).status()).isEqualTo(409); // key reuse
+		assertThat(this.fx.reserve(alice, showId, List.of("S2"), key).status()).isEqualTo(409); // key
+																								// reuse
 		String rid = this.fx.reserveOk(alice, showId, List.of("S3"));
 		assertThat(this.fx.reserve(alice, showId, List.of("S4"), key()).status()).isEqualTo(409); // limit
 		assertThat(this.fx.reserve(bob, showId, List.of("S1"), key()).status()).isEqualTo(409); // taken
 		assertThat(this.fx.reserve(bob, showId, List.of("NOPE"), key()).status()).isEqualTo(422); // invalid
 		assertThat(this.fx.cancel(alice, rid).status()).isEqualTo(200);
-		assertThat(this.fx.cancel(alice, rid).status()).isEqualTo(200); // repeat: not counted again
+		assertThat(this.fx.cancel(alice, rid).status()).isEqualTo(200); // repeat: not
+																		// counted again
 
 		String metrics = awaitGauge(showId, "confirmed", 1);
 		assertThat(value(metrics, "reservations_confirmed_total", showId, null)).isEqualTo(2);
@@ -97,7 +99,9 @@ class MetricsReconciliationTests {
 		assertThat(value(metrics, "seats_capacity", showId, null)).isEqualTo(counts.get("total").asLong());
 	}
 
-	/** Gauges refresh at most once per second after a write; wait for the expected value. */
+	/**
+	 * Gauges refresh at most once per second after a write; wait for the expected value.
+	 */
 	private String awaitGauge(String showId, String state, long expected) throws InterruptedException {
 		Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
 		while (true) {
@@ -118,7 +122,8 @@ class MetricsReconciliationTests {
 
 	private static long value(String metrics, String name, String showId, String state) {
 		String stateFilter = (state != null) ? "[^}]*state=\"" + state + "\"" : "";
-		Pattern p = Pattern.compile("^" + name + "\\{[^}]*show_id=\"" + showId + "\"" + stateFilter + "[^}]*} ([0-9.eE+-]+)$",
+		Pattern p = Pattern.compile(
+				"^" + name + "\\{[^}]*show_id=\"" + showId + "\"" + stateFilter + "[^}]*} ([0-9.eE+-]+)$",
 				Pattern.MULTILINE);
 		Matcher m = p.matcher(metrics);
 		return m.find() ? (long) Double.parseDouble(m.group(1)) : -1;

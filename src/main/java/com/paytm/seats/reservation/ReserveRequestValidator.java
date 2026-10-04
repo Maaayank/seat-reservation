@@ -9,9 +9,9 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
- * Checks a reserve request before any DB work: the idempotency key and the
- * seat list. Seat labels are checked against the cached show, so an unknown
- * seat never reaches the transaction.
+ * Checks a reserve request before any DB work: the idempotency key and the seat list.
+ * Seat labels are checked against the cached show, so an unknown seat never reaches the
+ * transaction.
  */
 final class ReserveRequestValidator {
 
