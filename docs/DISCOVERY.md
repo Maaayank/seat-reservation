@@ -47,6 +47,9 @@ Legend:
 | D32 | 2026-10-04 | Second live full burst: Render log "health check failed" → instance restarted. Health check was `/readyz`, which waits for a DB connection behind the burst (local: readyz worst 3.56 s vs livez 0.80 s). Render health check → `/livez` (restart signal = process health). `/readyz` keeps its contract (503 when DB down). Also: Render deployed before main CI finished, so `checksPass` does not wait for the whole workflow. |
 | D33 | 2026-10-04 | post-deploy smoke from GitHub runners: 1,400/1,500 requests failed client-side with "too many concurrent streams" (Render edge caps HTTP/2 streams; JDK client fails instead of queueing) yet reported PASS. Burst now retries that error (request never sent), FAILs a run when >10% of requests get no response, and treats absent counters as 0. |
 | D34 | 2026-10-04 | Local bottleneck tests (512 MB, full 20k burst): the app is CPU-bound, not DB-bound. Postgres runs SQL for 0.3% of connection-hold time; app at its CPU cap; Serial GC thrashing (31% of wall time) because ~2,000 queued requests fill the heap. JFR: structured logging 44% of allocation, http.server.requests.active long-task timer ~15% of CPU. Fixes: burst client uses a pool of HTTP/2 connections (<=100 streams each); 4xx ApiException has no stack trace and declines are returned, not thrown; access and decline log lines are DEBUG; counters cached; long-task timer off. Result at 0.5 CPU: 135 -> 193 req/s, p50 13.6 -> 8.7 s, full GCs 87 -> 47. Heap still full: ~100 KB per waiting request (Tomcat connection buffers). |
+| D35 | 2026-10-05 | Live full burst on b931edd (Render free): no restart, 0 app 5xx, every invariant passed, 993 seats sold, 78 req/s, p50 24.8 s, p99 40 s. One 520 came from the Render edge (no app error body). An earlier run lost 13.9k requests to TLS handshake failures on the client network (corporate proxy); the rerun had none. Local test at 0.5 CPU: 128 processing slots gave no gain over 64 (188 vs 193 req/s; Hikari pending 118 vs 54; acquire wait 1.92 vs 1.04 s). 128 still runs out of heap at 0.1 CPU. Keep 64. |
+| D36 | 2026-10-05 | Reserve takes its processing slot only before its first DB call. The token check, body parse, cached show lookup, validation and L2 sold-set check run first, so a request for a sold seat gets its 409 without queueing behind seat sales. A show cache miss, the L1 read, the L3 claim and the transaction stay inside a slot. Other endpoints keep the slot for the whole request (ConcurrencyLimitFilter). After taking the slot it checks the sold set again before the L1 read: without that, requests that queued before their seat sold went to the DB (DB uses 2,550 -> 6,019). A client disconnect is logged at DEBUG, not as a 500. The burst poller waits up to 60 s. Local 0.5 CPU, heap 60%: 238 req/s, p50 0.48 s, but p99 58 s and 81 client timeouts (GC 40% of wall time). |
+| D37 | 2026-10-05 | Heap 60% -> 70% on Render. Local 0.5 CPU full burst with D36: 365 req/s, p50 0.10 s, p99 36 s, 0 timeouts, full GCs 64 -> 26 (GC 22% of wall time), PASS with no warnings. Container memory peak 92% of the limit (75% peaked at 97%), so the margin is small. |
 | D23 | 2026-10-04 | Measured (500-user hot seat, local container): DB declines 499 → 0 with layers on; server p50 7 → 2 ms, p99 272 → 191 ms. Client-bound; Phase 7 burst tool re-measures. |
 
 ---
@@ -596,8 +599,12 @@ merge to main
 
 - JSON to stdout. Fields: `ts`, `level`, `request_id`, `user_id`, `show_id`, `route`, `status`, `outcome`, `reason`, `seats`, `latency_ms`.
 - `X-Request-Id`: accept or create. Put in MDC. Return in response header and error body.
-- One access line per request. One decision line per reserve. No per-step logs on the hot path.
-- Async appender, so logging does not slow the burst. [inferred, M]
+- INFO: one decision line per confirmed or replayed reserve and per cancel. The count is bounded by the number of seats, not by the number of requests.
+- DEBUG: one access line per request (`LOGGING_LEVEL_ACCESS=DEBUG`) and one decision line per declined reserve (`LOGGING_LEVEL_RESERVATION=DEBUG`). At INFO they caused 44% of all allocation in a full burst (D34).
+- A client that disconnects before its answer is written (broken pipe): one DEBUG line. It is not a 500.
+- ERROR with stack trace: unexpected faults only (500).
+- No per-step logs on the hot path.
+- Async appender with a queue of 1,024 events. It drops lines rather than block a request.
 - Never log tokens or the admin key.
 
 ### 11.3 Hosting (F2)
