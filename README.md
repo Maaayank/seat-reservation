@@ -88,7 +88,9 @@ What it does, on one fresh show:
 6. Cancel racing rebookers on won seats.
 7. Final reconciliation: counts add up, confirmed seats equal what clients were told, Prometheus counters equal client-observed outcomes, `seats` gauge equals the API.
 
-Requests that get no HTTP response (timeouts, dropped connections) are reported separately as client-side errors, never as 5xx.
+Requests that get no HTTP response (timeouts, dropped connections) are reported separately as client-side errors, never as 5xx. A 5xx is labelled `(app)` when it carries this service's JSON error body (with `request_id`) and `(edge)` when it came from a proxy in front of it.
+
+Behind a TLS-inspecting corporate proxy on Windows, Java may fail with `PKIX path building failed`. Use the Windows trust store: `JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStoreType=Windows-ROOT ./burst.sh ...`.
 
 Measured locally (`full`, run inside the compose network):
 

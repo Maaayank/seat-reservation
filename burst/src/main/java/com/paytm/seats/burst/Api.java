@@ -163,7 +163,10 @@ final class Api {
 				return "client:" + this.clientError;
 			}
 			if (this.status >= 500) {
-				return "5xx";
+				// Our service always answers with a JSON error body carrying request_id.
+				// Anything else came from a proxy in front of it (e.g. the platform
+				// edge).
+				return "5xx:" + this.status + (this.body.contains("\"request_id\"") ? " (app)" : " (edge)");
 			}
 			if (this.status < 300) {
 				return (this.status == 201 && isReplay()) ? "201 (replay)" : String.valueOf(this.status);
