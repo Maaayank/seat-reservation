@@ -19,8 +19,7 @@ class ConcurrencyLimitFilterTests {
 
 	private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
-	private final ConcurrencyLimitFilter filter = new ConcurrencyLimitFilter(
-			new ProcessingSlots(properties(1), this.registry));
+	private final ConcurrencyLimitFilter filter = new ConcurrencyLimitFilter(properties(1), this.registry);
 
 	@Test
 	void secondRequestWaitsUntilFirstFinishes() throws Exception {
@@ -28,13 +27,13 @@ class ConcurrencyLimitFilterTests {
 		CountDownLatch releaseFirst = new CountDownLatch(1);
 		AtomicInteger completed = new AtomicInteger();
 
-		Thread first = Thread.ofVirtual().start(() -> run("/reservations/x/cancel", () -> {
+		Thread first = Thread.ofVirtual().start(() -> run("/shows/x/reserve", () -> {
 			firstInside.countDown();
 			await(releaseFirst);
 			completed.incrementAndGet();
 		}));
 		firstInside.await();
-		Thread second = Thread.ofVirtual().start(() -> run("/reservations/x/cancel", completed::incrementAndGet));
+		Thread second = Thread.ofVirtual().start(() -> run("/shows/x/reserve", completed::incrementAndGet));
 
 		waitForQueue(1);
 		assertThat(completed).hasValue(0);
@@ -48,7 +47,7 @@ class ConcurrencyLimitFilterTests {
 	void probesBypassTheLimit() throws Exception {
 		CountDownLatch releaseFirst = new CountDownLatch(1);
 		CountDownLatch firstInside = new CountDownLatch(1);
-		Thread first = Thread.ofVirtual().start(() -> run("/reservations/x/cancel", () -> {
+		Thread first = Thread.ofVirtual().start(() -> run("/shows/x/reserve", () -> {
 			firstInside.countDown();
 			await(releaseFirst);
 		}));
@@ -61,12 +60,6 @@ class ConcurrencyLimitFilterTests {
 
 		releaseFirst.countDown();
 		first.join();
-	}
-
-	@Test
-	void reserveTakesItsOwnSlotLater() {
-		assertThat(this.filter.shouldNotFilter(new MockHttpServletRequest("POST", "/shows/x/reserve"))).isTrue();
-		assertThat(this.filter.shouldNotFilter(new MockHttpServletRequest("GET", "/shows/x"))).isFalse();
 	}
 
 	@Test
