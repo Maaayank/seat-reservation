@@ -1,0 +1,54 @@
+name: post-deploy
+
+# After CI passes on main, Render deploys (autoDeployTrigger: checksPass). This job
+# waits until the live service reports the same commit, then runs the smoke burst
+# against it. Needs repo variable LIVE_URL and secret ADMIN_API_KEY; skips if unset.
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      LIVE_URL: ${{ vars.LIVE_URL }}
+      ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+      EXPECTED_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Check configuration
+        id: config
+        run: |
+          if [ -z "$LIVE_URL" ] || [ -z "$ADMIN_API_KEY" ]; then
+            echo "LIVE_URL or ADMIN_API_KEY not configured; skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.skip != 'true'
+        with:
+          ref: ${{ env.EXPECTED_COMMIT }}
+
+      - uses: actions/setup-java@v4
+        if: steps.config.outputs.skip != 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Wait for the live service to run this commit
+        if: steps.config.outputs.skip != 'true'
+        timeout-minutes: 20
+        run: |
+          until curl -fsS "$LIVE_URL/actuator/info" | grep -q "\"commit\":\"$EXPECTED_COMMIT\""; do
+            echo "live: $(curl -s "$LIVE_URL/actuator/info" || echo unreachable); waiting..."
+            sleep 20
+          done
+          echo "live service runs $EXPECTED_COMMIT"
+
+      - name: Smoke burst against the live service
+        if: steps.config.outputs.skip != 'true'
+        run: ./burst.sh "$LIVE_URL" "$ADMIN_API_KEY" --profile smoke

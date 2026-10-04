@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Boot's structured (JSON) console appender, wrapped in an async appender so a
+  burst never waits on stdout. MDC (request_id, user_id) is captured when the
+  event is queued. neverBlock: under extreme load, drop log lines rather than
+  slow requests down.
+-->
+<configuration>
+	<include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+	<include resource="org/springframework/boot/logging/logback/structured-console-appender.xml"/>
+
+	<appender name="ASYNC_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+		<queueSize>8192</queueSize>
+		<discardingThreshold>0</discardingThreshold>
+		<neverBlock>true</neverBlock>
+		<appender-ref ref="CONSOLE"/>
+	</appender>
+
+	<root level="INFO">
+		<appender-ref ref="ASYNC_CONSOLE"/>
+	</root>
+</configuration>

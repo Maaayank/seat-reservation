@@ -1,0 +1,55 @@
+# Local stack. Works with `docker compose up --build` or `podman compose up --build`.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: seats
+      POSTGRES_USER: seats
+      POSTGRES_PASSWORD: seats
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seats -d seats"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    image: seat-reservation:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/seats
+      DATABASE_USERNAME: seats
+      DATABASE_PASSWORD: seats
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-local-admin-key}
+      JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-change-me-0123456789abcdef}
+      LAYER_SOLD_SET: ${LAYER_SOLD_SET:-true}
+      LAYER_READ_CHECK: ${LAYER_READ_CHECK:-true}
+      LAYER_SEAT_CLAIM: ${LAYER_SEAT_CLAIM:-true}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    depends_on: [app]
+    volumes:
+      - ./observability/prometheus:/etc/prometheus:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    depends_on: [prometheus]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/seat-reservation.json
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"

@@ -1,0 +1,7 @@
+target/
+burst/target/
+.git/
+.idea/
+.vscode/
+docs/
+*.md
