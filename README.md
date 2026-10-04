@@ -100,7 +100,7 @@ latency p50 219 ms | p95 936 ms | p99 1254 ms
 RESULT: PASS   (0 5xx, 10/10 hot seats with exactly one winner, metrics reconcile exactly)
 ```
 
-> **Capacity note.** The live demo runs on a free tier (small CPU, sleeps when idle; first request after idle can take ~60 s). Use `--profile smoke` against it. Run `full` against your own deploy, or locally with `make up && make burst-in-network`.
+> **Capacity note.** The live demo runs on Render's free tier (shared ~0.1 CPU, 512 MB, sleeps when idle; the first request after idle can take ~60 s). Measured live once warm: smoke profile at 79–101 req/s with zero 5xx. Bursts sent while the instance is cold or waking can get 5xx from Render's edge before requests reach the app (the app itself returned none). Use `--profile smoke` against it. Run `full` against your own deploy, or locally with `make up && make burst-in-network`.
 > Bursting a local stack through the host port (`localhost:8080`) with thousands of connections can hit the container runtime's port forwarder (we saw dropped connections with Podman on Windows). The server never sees those requests; the tool reports them as client-side errors. Running inside the compose network avoids it.
 
 ## Observability

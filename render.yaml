@@ -56,6 +56,8 @@ services:
       - key: DB_CONNECTION_TIMEOUT
         value: "180000"
       # C1-only JIT halves startup on a small CPU (local: ~120 s -> ~57 s with CDS).
-      # Not set in the Dockerfile, so bigger deploys keep the full JIT.
+      # Heap 60% of 512 MB leaves room for non-heap memory (75% peaked at 97% of the
+      # container limit under a 20k burst; 60% + ConcurrencyLimitFilter peaked at 79%).
+      # Not set in the Dockerfile, so bigger deploys keep their own defaults.
       - key: JAVA_TOOL_OPTIONS
-        value: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -XX:TieredStopAtLevel=1"
+        value: "-XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError -XX:TieredStopAtLevel=1"
