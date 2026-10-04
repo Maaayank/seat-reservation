@@ -5,7 +5,8 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/seats}
+    # Either a full JDBC URL (e.g. Neon), or host/port/name parts (e.g. a Render database).
+    url: ${DATABASE_URL:jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DATABASE_NAME:seats}}
     username: ${DATABASE_USERNAME:seats}
     password: ${DATABASE_PASSWORD:seats}
     hikari:

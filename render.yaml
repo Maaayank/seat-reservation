@@ -1,5 +1,15 @@
 # Render Blueprint: the live demo (free tier). See docs/DEPLOY.md.
-# Database: Neon free Postgres (Render's free Postgres expires after 30 days).
+# Database: Render free Postgres (expires 30 days after creation; Neon is the fallback).
+databases:
+  - name: seat-reservation-db
+    plan: free
+    region: singapore
+    postgresMajorVersion: "17"
+    databaseName: seats
+    user: seats
+    # No external access: only services in the same Render region can connect.
+    ipAllowList: []
+
 services:
   - name: seat-reservation
     type: web
@@ -12,13 +22,28 @@ services:
     # Deploy main only after GitHub CI passes.
     autoDeployTrigger: checksPass
     envVars:
-      # Neon direct (non-pooler) endpoint, same region (ap-southeast-1). Set in the dashboard.
-      - key: DATABASE_URL
-        sync: false
+      # Internal connection to the database above. To use Neon instead, delete these
+      # five and set DATABASE_URL (JDBC), DATABASE_USERNAME and DATABASE_PASSWORD.
+      - key: DATABASE_HOST
+        fromDatabase:
+          name: seat-reservation-db
+          property: host
+      - key: DATABASE_PORT
+        fromDatabase:
+          name: seat-reservation-db
+          property: port
+      - key: DATABASE_NAME
+        fromDatabase:
+          name: seat-reservation-db
+          property: database
       - key: DATABASE_USERNAME
-        sync: false
+        fromDatabase:
+          name: seat-reservation-db
+          property: user
       - key: DATABASE_PASSWORD
-        sync: false
+        fromDatabase:
+          name: seat-reservation-db
+          property: password
       # Generated once by Render; read ADMIN_API_KEY from the dashboard to mint tokens.
       - key: ADMIN_API_KEY
         generateValue: true
@@ -26,11 +51,11 @@ services:
         generateValue: true
       - key: DB_POOL_SIZE
         value: "10"
-      # 0.1 CPU drains a burst at ~13 req/s. A long pool wait turns overload into slow
-      # answers instead of 500s (measured: 110 x 5xx at 30 s, 0 at 180 s).
+      # A small shared CPU drains a burst slowly. A long pool wait turns overload into
+      # slow answers instead of 500s (local 0.1-CPU test: 110 x 5xx at 30 s, 0 at 180 s).
       - key: DB_CONNECTION_TIMEOUT
         value: "180000"
-      # 0.1 CPU: C1-only JIT halves startup (measured ~120 s -> ~57 s with CDS).
+      # C1-only JIT halves startup on a small CPU (local: ~120 s -> ~57 s with CDS).
       # Not set in the Dockerfile, so bigger deploys keep the full JIT.
       - key: JAVA_TOOL_OPTIONS
         value: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -XX:TieredStopAtLevel=1"

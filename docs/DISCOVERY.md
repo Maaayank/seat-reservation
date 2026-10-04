@@ -42,6 +42,7 @@ Legend:
 | D27 | 2026-10-04 | Clean-code phase: package-by-feature (common, config, auth, show, reservation, reservation.layers, observability); reservation flow split into validator, transaction, cancel service, orchestrator; ErrorCode/ReservationStatus enums; spring-javaformat enforced; V1+V2 migrations merged (nothing deployed yet). |
 | D28 | 2026-10-04 | Render deploys main with `autoDeployTrigger: checksPass` (no deploy hook). `/actuator/info` shows `RENDER_GIT_COMMIT`; post-deploy job waits for it, then runs smoke burst. GHCR multi-arch image on main. |
 | D29 | 2026-10-04 | Free tier measured at 0.1 CPU / 512 MB: startup 163 s plain, 120 s CDS, 57 s CDS + C1-only JIT (Java 25 AOT cache and lazy init gave no gain). Smoke burst: 30 s pool wait → 110 x 5xx; 180 s → 0 x 5xx, PASS, but ~13 req/s and 202/1500 client timeouts. Free tier is correct but cannot absorb a 20k burst quickly. |
+| D30 | 2026-10-04 | User decision: Render free Postgres (30-day expiry) instead of Neon, created by the Blueprint and wired via `fromDatabase`; Neon is the fallback (DEPLOY.md §7). JDBC URL built from host/port/name when `DATABASE_URL` is unset. Render's 0.1 CPU is a shared slice, not a hard cap like the local `--cpus 0.1` test, so live capacity must be measured live. |
 | D23 | 2026-10-04 | Measured (500-user hot seat, local container): DB declines 499 → 0 with layers on; server p50 7 → 2 ms, p99 272 → 191 ms. Client-bound; Phase 7 burst tool re-measures. |
 
 ---
