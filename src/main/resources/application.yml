@@ -80,10 +80,17 @@ management:
     tags:
       application: seat-reservation
     distribution:
-      # Buckets for histogram_quantile() latency panels and alerts.
+      # Buckets for histogram_quantile() latency panels and alerts. Each request updates
+      # them; set METRICS_HISTOGRAM=false to save that work on a tiny CPU.
       percentiles-histogram:
-        http.server.requests: true
+        http.server.requests: ${METRICS_HISTOGRAM:true}
+    observations:
+      # No http.server.requests.active long-task timer: with thousands of requests in
+      # flight, keeping it up to date cost ~15% of the CPU in a burst profile.
+      ignored-meters: long-task-timer
 
+# Log levels are env vars too: LOGGING_LEVEL_ACCESS=DEBUG turns on one access line per
+# request; LOGGING_LEVEL_RESERVATION=DEBUG adds one line per declined reserve.
 logging:
   structured:
     format:

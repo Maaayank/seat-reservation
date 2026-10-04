@@ -2,6 +2,8 @@ package com.paytm.seats.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.paytm.seats.auth.AdminKeyFilter;
+import com.paytm.seats.auth.BearerTokenFilter;
 import com.paytm.seats.config.SeatsProperties;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
@@ -9,6 +11,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.annotation.OrderUtils;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
@@ -57,6 +60,13 @@ class ConcurrencyLimitFilterTests {
 
 		releaseFirst.countDown();
 		first.join();
+	}
+
+	@Test
+	void runsAfterTheAuthFilters() {
+		int order = OrderUtils.getOrder(ConcurrencyLimitFilter.class, 0);
+		assertThat(order).isGreaterThan(OrderUtils.getOrder(AdminKeyFilter.class, 0))
+			.isGreaterThan(OrderUtils.getOrder(BearerTokenFilter.class, 0));
 	}
 
 	private void run(String uri, Runnable insideChain) {

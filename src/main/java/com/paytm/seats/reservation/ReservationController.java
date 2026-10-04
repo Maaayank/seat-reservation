@@ -1,6 +1,7 @@
 package com.paytm.seats.reservation;
 
 import com.paytm.seats.auth.AuthenticatedUser;
+import com.paytm.seats.common.ErrorResponse;
 import java.net.URI;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,20 +28,24 @@ class ReservationController {
 
 	/**
 	 * 201 for a new reservation, and also for an idempotent replay (same key, same
-	 * request), which returns the original body with {@code Idempotent-Replayed: true}.
+	 * request), which returns the original body with {@code Idempotent-Replayed: true}. A
+	 * decline is written here as the standard error body, without throwing.
 	 */
 	@PostMapping("/shows/{showId}/reserve")
-	ResponseEntity<ReservationView> reserve(AuthenticatedUser user, @PathVariable String showId,
+	ResponseEntity<?> reserve(AuthenticatedUser user, @PathVariable String showId,
 			@RequestBody(required = false) ReserveRequest request,
 			@RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey) {
-		ReserveOutcome outcome = this.reservations.reserve(user, showId, request, idempotencyKey);
-		ReservationView reservation = switch (outcome) {
-			case ReserveOutcome.Confirmed confirmed -> confirmed.reservation();
-			case ReserveOutcome.Replayed replayed -> replayed.reservation();
-			case ReserveOutcome.Declined declined -> throw new IllegalStateException("declines are thrown");
+		return switch (this.reservations.reserve(user, showId, request, idempotencyKey)) {
+			case ReserveOutcome.Confirmed confirmed -> created(confirmed.reservation(), false);
+			case ReserveOutcome.Replayed replayed -> created(replayed.reservation(), true);
+			case ReserveOutcome.Declined declined -> ResponseEntity.status(declined.error().status())
+				.body(ErrorResponse.of(declined.error(), declined.message()));
 		};
+	}
+
+	private static ResponseEntity<ReservationView> created(ReservationView reservation, boolean replayed) {
 		return ResponseEntity.created(URI.create("/reservations/" + reservation.reservationId()))
-			.header("Idempotent-Replayed", Boolean.toString(outcome instanceof ReserveOutcome.Replayed))
+			.header("Idempotent-Replayed", Boolean.toString(replayed))
 			.body(reservation);
 	}
 

@@ -33,7 +33,14 @@ final class Reconciliation {
 	 * won.
 	 */
 	private Set<String> verifyShowState() {
-		JsonNode show = this.run.api.get("/shows/" + this.run.showId).json();
+		Api.Result result = this.run.api.get("/shows/" + this.run.showId);
+		if (result.status() != 200) {
+			// The app died or is unreachable: nothing to reconcile against.
+			this.run.report.check("Final show state readable", false,
+					"GET /shows/{id} -> " + result.outcome() + " (app down or unreachable)");
+			return Set.of();
+		}
+		JsonNode show = result.json();
 		JsonNode counts = show.get("counts");
 		int available = counts.get("available").asInt();
 		int held = counts.get("held").asInt();

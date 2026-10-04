@@ -14,6 +14,7 @@ import java.util.UUID;
  *
  * <pre>
  * java -jar burst.jar &lt;BASE_URL&gt; &lt;ADMIN_KEY&gt; [--profile smoke|full] [--max-in-flight N]
+ *     [--streams-per-connection N]
  * </pre>
  *
  * Run order, on one fresh show:
@@ -36,26 +37,29 @@ public final class Burst {
 
 	public static void main(String[] args) throws Exception {
 		if (args.length < 2) {
-			System.err.println("usage: burst <BASE_URL> <ADMIN_KEY> [--profile smoke|full] [--max-in-flight N]");
+			System.err.println(
+					"usage: burst <BASE_URL> <ADMIN_KEY> [--profile smoke|full] [--max-in-flight N] [--streams-per-connection N]");
 			System.exit(2);
 		}
 		String baseUrl = args[0];
 		String adminKey = args[1];
 		Profile profile = Profile.SMOKE;
 		Integer maxInFlight = null;
+		int streamsPerConnection = 100;
 		for (int i = 2; i < args.length; i++) {
 			switch (args[i]) {
 				case "--profile" -> profile = Profile.valueOf(args[++i].toUpperCase(Locale.ROOT));
 				case "--max-in-flight" -> maxInFlight = Integer.parseInt(args[++i]);
+				case "--streams-per-connection" -> streamsPerConnection = Integer.parseInt(args[++i]);
 				default -> throw new IllegalArgumentException("unknown option " + args[i]);
 			}
 		}
 		int inFlight = (maxInFlight != null) ? maxInFlight : profile.maxInFlight;
-		System.out.printf(Locale.ROOT, "burst -> %s | profile %s | max in flight %d%n", baseUrl,
-				profile.name().toLowerCase(Locale.ROOT), inFlight);
-
-		Api api = new Api(baseUrl, adminKey, inFlight, Duration.ofSeconds(60));
-		Api pollerApi = new Api(baseUrl, adminKey, 2, Duration.ofSeconds(10));
+		Api api = new Api(baseUrl, adminKey, inFlight, streamsPerConnection, Duration.ofSeconds(60));
+		Api pollerApi = new Api(baseUrl, adminKey, 2, streamsPerConnection, Duration.ofSeconds(10));
+		System.out.printf(Locale.ROOT, "burst -> %s | profile %s | max in flight %d | %d connections x %d streams%n",
+				baseUrl, profile.name().toLowerCase(Locale.ROOT), inFlight, api.connectionCount(),
+				streamsPerConnection);
 		Report report = run(api, pollerApi, profile);
 		System.exit(report.failed() ? 1 : 0);
 	}

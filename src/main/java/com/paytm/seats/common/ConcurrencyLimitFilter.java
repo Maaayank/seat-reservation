@@ -27,9 +27,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * <p>
  * Nothing is rejected: no 503 or 429. A request waits for its turn. Health and metrics
  * endpoints bypass the limit so probes keep working under load.
+ *
+ * <p>
+ * Runs after the admin-key and bearer-token filters: a request with a bad or missing
+ * credential gets its 401/403 at once instead of queueing behind valid requests.
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE + 5)
+@Order(Ordered.HIGHEST_PRECEDENCE + 30)
 public class ConcurrencyLimitFilter extends OncePerRequestFilter {
 
 	private final Semaphore permits;

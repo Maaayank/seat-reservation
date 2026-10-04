@@ -51,8 +51,8 @@ class ReservationService {
 	}
 
 	/**
-	 * Returns a confirmed or replayed reservation; throws {@link ApiException} for every
-	 * decline.
+	 * Returns the outcome; a decline is returned, not thrown, so the hot seat_taken path
+	 * throws no exception. An unknown show is still thrown (it is not counted per show).
 	 */
 	ReserveOutcome reserve(AuthenticatedUser user, String rawShowId, ReserveRequest request, String headerKey) {
 		UUID showId = ShowService.parseShowId(rawShowId);
@@ -69,9 +69,6 @@ class ReservationService {
 			outcome = new ReserveOutcome.Declined(ex.error(), ex.getMessage());
 		}
 		record(showId, seats, outcome);
-		if (outcome instanceof ReserveOutcome.Declined declined) {
-			throw new ApiException(declined.error(), declined.message());
-		}
 		return outcome;
 	}
 
@@ -105,9 +102,14 @@ class ReservationService {
 		return new ReserveOutcome.Declined(ErrorCode.SEAT_TAKEN, "one or more seats are taken");
 	}
 
-	/** One metric and one log line per reserve request. */
+	/**
+	 * One metric and one log line per reserve request. Declines log at DEBUG: a burst
+	 * produces thousands of them, and each JSON log line costs CPU and heap.
+	 */
 	private void record(UUID showId, List<String> seats, ReserveOutcome outcome) {
-		var line = log.atInfo().addKeyValue("show_id", showId).addKeyValue("seats", seats);
+		var line = ((outcome instanceof ReserveOutcome.Declined) ? log.atDebug() : log.atInfo())
+			.addKeyValue("show_id", showId)
+			.addKeyValue("seats", seats);
 		switch (outcome) {
 			case ReserveOutcome.Confirmed confirmed -> {
 				this.metrics.confirmed(showId);

@@ -126,7 +126,7 @@ Key metrics (`/actuator/prometheus`):
 
 Counters are in memory and reset on restart; the `seats` gauges come from the DB. The DB is only queried for them after a write (at most once per second), so an idle service lets a serverless DB sleep.
 
-Logs: JSON (ECS) on stdout via an async appender. Every line carries `request_id`; authenticated requests carry `user_id`. Each reserve logs one `reserve decided` line with `show_id`, `seats`, `outcome`, `reason`.
+Logs: JSON (ECS) on stdout via an async appender. Every line carries `request_id`; authenticated requests carry `user_id`. Each confirmed or replayed reserve, and each cancel, logs one INFO line (`reserve decided` / `cancel decided`) with `show_id`, `seats`, `outcome`. Declines and per-request access lines are DEBUG, because at INFO a burst spends a large share of its CPU and heap on them. Turn them on with `LOGGING_LEVEL_RESERVATION=DEBUG` and `LOGGING_LEVEL_ACCESS=DEBUG`. Set `METRICS_HISTOGRAM=false` to drop the latency histogram buckets.
 
 ## Project structure
 

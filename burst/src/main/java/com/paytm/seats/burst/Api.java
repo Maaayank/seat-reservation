@@ -13,6 +13,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -20,12 +22,21 @@ import tools.jackson.databind.json.JsonMapper;
  * HTTP client for the service. A semaphore caps requests in flight. A refused connect is
  * retried (the server never saw the request); a timeout is reported as an unknown
  * outcome, never as a server error.
+ *
+ * <p>
+ * HTTP/2 multiplexes every request of one {@link HttpClient} on one connection, and an
+ * edge proxy caps the parallel streams on a connection. The JDK client fails a request
+ * over that cap instead of queueing it. So requests are spread over several clients (one
+ * connection each), and each client carries at most {@code streamsPerConnection} requests
+ * at once.
  */
 final class Api {
 
 	static final JsonMapper JSON = JsonMapper.builder().build();
 
-	private final HttpClient client;
+	private final List<Connection> connections;
+
+	private final AtomicInteger next = new AtomicInteger();
 
 	private final String baseUrl;
 
@@ -35,15 +46,22 @@ final class Api {
 
 	private final Duration timeout;
 
-	Api(String baseUrl, String adminKey, int maxInFlight, Duration timeout) {
+	Api(String baseUrl, String adminKey, int maxInFlight, int streamsPerConnection, Duration timeout) {
 		this.baseUrl = baseUrl.replaceAll("/+$", "");
 		this.adminKey = adminKey;
 		this.inFlight = new Semaphore(maxInFlight, true);
 		this.timeout = timeout;
-		this.client = HttpClient.newBuilder()
-			.version(HttpClient.Version.HTTP_2)
-			.connectTimeout(Duration.ofSeconds(30))
-			.build();
+		int count = Math.ceilDiv(maxInFlight, streamsPerConnection);
+		this.connections = IntStream.range(0, count)
+			.mapToObj((i) -> new Connection(HttpClient.newBuilder()
+				.version(HttpClient.Version.HTTP_2)
+				.connectTimeout(Duration.ofSeconds(30))
+				.build(), new Semaphore(streamsPerConnection)))
+			.toList();
+	}
+
+	int connectionCount() {
+		return this.connections.size();
 	}
 
 	Result get(String path) {
@@ -100,11 +118,13 @@ final class Api {
 			Thread.currentThread().interrupt();
 			return Result.clientError("interrupted", 0);
 		}
+		Connection connection = pickConnection();
 		long start = System.nanoTime();
 		try {
 			for (int attempt = 1;; attempt++) {
 				try {
-					HttpResponse<String> response = this.client.send(request, HttpResponse.BodyHandlers.ofString());
+					HttpResponse<String> response = connection.client()
+						.send(request, HttpResponse.BodyHandlers.ofString());
 					return new Result(response.statusCode(), response.body(),
 							response.headers().firstValue("Idempotent-Replayed").orElse(""), null, elapsedMs(start));
 				}
@@ -115,11 +135,8 @@ final class Api {
 					Thread.sleep(50L * attempt);
 				}
 				catch (IOException ex) {
-					// The server (or its edge) caps parallel HTTP/2 streams per
-					// connection; the
-					// JDK client fails the request instead of queueing it. It was never
-					// sent,
-					// so retrying is safe.
+					// Safety net if the edge cap is below streamsPerConnection. The
+					// request was never sent, so retrying is safe.
 					if (!String.valueOf(ex.getMessage()).contains("too many concurrent streams") || attempt == 50) {
 						throw ex;
 					}
@@ -141,12 +158,33 @@ final class Api {
 			return Result.clientError("interrupted", elapsedMs(start));
 		}
 		finally {
+			connection.streams().release();
 			this.inFlight.release();
+		}
+	}
+
+	/**
+	 * Takes a stream slot on the next connection that has one. The caller holds an
+	 * in-flight permit, and the connections together have at least as many slots as there
+	 * are permits, so a free slot always exists.
+	 */
+	private Connection pickConnection() {
+		while (true) {
+			Connection connection = this.connections
+				.get(Math.floorMod(this.next.getAndIncrement(), this.connections.size()));
+			if (connection.streams().tryAcquire()) {
+				return connection;
+			}
 		}
 	}
 
 	private static double elapsedMs(long start) {
 		return (System.nanoTime() - start) / 1_000_000.0;
+	}
+
+	/** One HTTP/2 connection and its free stream slots. */
+	private record Connection(HttpClient client, Semaphore streams) {
+
 	}
 
 	/** One HTTP outcome. {@code clientError} is set when no HTTP status was received. */
