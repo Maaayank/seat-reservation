@@ -26,7 +26,19 @@ Service: `http://localhost:8080`.
 | `GET /readyz` | Readiness. Checks the database. Returns 503 when the DB is down. |
 | `GET /actuator/prometheus` | Prometheus metrics. |
 | `POST /shows` | Create a show (admin: `X-Admin-Key`). Body: `name`, `seats[]`, `price_paise` (integer), optional `per_user_limit` (default 4). |
-| `GET /shows/{id}` | Per-seat status and counts. `available + held + confirmed == total`, read in one query. |
+| `GET /shows/{id}` | Per-seat status and counts. `available + held + confirmed == total`, read in one query. Public. |
+| `POST /auth/tokens` | Mint user tokens in bulk (admin: `X-Admin-Key`). Body: `{"user_ids": ["u1", "u2"]}` (max 10,000). |
+| `GET /auth/me` | Returns the caller's `user_id` from the token. |
+
+## Auth
+
+- Users: `Authorization: Bearer <jwt>` (HS256, `sub` = user id, 1 h TTL). Identity comes only from the token; any user id in a body is ignored.
+- Admin: `X-Admin-Key: <ADMIN_API_KEY>` for `POST /shows` and `POST /auth/tokens`.
+- Required env: `ADMIN_API_KEY`, `JWT_SECRET` (at least 32 bytes). The app refuses to start without them.
+
+```sh
+curl -s localhost:8080/auth/tokens -H 'Content-Type: application/json' -H 'X-Admin-Key: local-admin-key'   -d '{"user_ids":["alice","bob"]}'
+```
 
 Errors use one shape: `{"error": "<code>", "message": "...", "request_id": "..."}`.
 
