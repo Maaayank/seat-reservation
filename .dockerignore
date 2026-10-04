@@ -1,4 +1,5 @@
 target/
+burst/target/
 .git/
 .idea/
 .vscode/
