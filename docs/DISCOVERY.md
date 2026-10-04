@@ -39,6 +39,7 @@ Legend:
 | D24 | 2026-10-04 | `seats` gauge refreshes from the DB only after a write (≤1/s) plus a 30 min safety refresh. A fixed 1 s poll would keep Neon awake (186 CU-h > 100 free). |
 | D25 | 2026-10-04 | Gauges are registered once and updated in place. `MultiGauge` overwrite re-registers series each refresh, so a scrape mid-refresh missed series (seen as a flaky test). |
 | D26 | 2026-10-04 | Burst full profile (20k) passes all checks inside the compose network (p99 1.25 s). Through the Podman Windows port forwarder, ~7.7k connections dropped with no response; server counters prove those requests never reached the app. README tells users to run full-scale local bursts in-network. |
+| D27 | 2026-10-04 | Clean-code phase: package-by-feature (common, config, auth, show, reservation, reservation.layers, observability); reservation flow split into validator, transaction, cancel service, orchestrator; ErrorCode/ReservationStatus enums; spring-javaformat enforced; V1+V2 migrations merged (nothing deployed yet). |
 | D23 | 2026-10-04 | Measured (500-user hot seat, local container): DB declines 499 → 0 with layers on; server p50 7 → 2 ms, p99 272 → 191 ms. Client-bound; Phase 7 burst tool re-measures. |
 
 ---

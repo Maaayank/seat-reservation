@@ -126,6 +126,30 @@ Counters are in memory and reset on restart; the `seats` gauges come from the DB
 
 Logs: JSON (ECS) on stdout via an async appender. Every line carries `request_id`; authenticated requests carry `user_id`. Each reserve logs one `reserve decided` line with `show_id`, `seats`, `outcome`, `reason`.
 
+## Project structure
+
+Package-by-feature. Each feature folder holds its controller, service and repository.
+
+```
+src/main/java/com/paytm/seats/
+├─ common/          error contract (ErrorCode, ApiException, handler), request id filter
+├─ config/          typed settings (seats.*), clock
+├─ auth/            JWT + admin key filters, token minting, AuthenticatedUser
+├─ show/            create/read shows, ShowCatalog cache of immutable show data
+├─ reservation/     ReservationService (flow) → ReserveTransaction (atomic decision)
+│  │                CancelService, ReservationRepository (SQL), ReserveRequestValidator
+│  └─ layers/       fast-decline layers L1/L2/L3 (decline only, never grant)
+└─ observability/   business counters, DB-backed seat gauges
+src/main/resources/db/migration/V1__schema.sql
+burst/              load generator and invariant checker (separate Maven module)
+observability/      Prometheus config + alert rules, Grafana dashboard
+docs/DISCOVERY.md   design and decision log (D1..Dn)
+```
+
+Every package has a `package-info.java` describing its role; the root one maps the request path and the correctness rules.
+
+Code style: spring-javaformat, enforced in the build. Fix with `./mvnw spring-javaformat:apply`.
+
 ## Test
 
 ```sh
