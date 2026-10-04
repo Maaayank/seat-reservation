@@ -19,7 +19,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * Assigns a correlation id to every request. Accepts a well-formed client
  * {@code X-Request-Id}, otherwise generates one. The id goes into the MDC (so every log
  * line carries it) and back to the client in the response header. Also writes one access
- * log line per request.
+ * log line per request, at DEBUG (enable with {@code LOGGING_LEVEL_ACCESS=DEBUG}): at
+ * INFO a burst spends a large share of its CPU and heap formatting these lines.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -49,7 +50,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
 		finally {
 			long latencyMs = (System.nanoTime() - start) / 1_000_000;
 			if (!isProbe(request)) {
-				ACCESS_LOG.atInfo()
+				ACCESS_LOG.atDebug()
 					.addKeyValue("method", request.getMethod())
 					.addKeyValue("route", request.getRequestURI())
 					.addKeyValue("status", response.getStatus())
