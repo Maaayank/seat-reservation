@@ -68,9 +68,14 @@ final class Reconciliation {
 				+ this.run.cancels.stream().filter((r) -> r.status() >= 500).count();
 		long clientErrors = this.run.reserves.stream().filter((r) -> r.clientError() != null).count();
 		this.run.report.check("Zero 5xx across the whole run", serverErrors == 0, serverErrors + " responses >= 500");
-		this.run.report.check("Client-side errors (timeouts, refused)",
-				(clientErrors == 0) ? Report.Verdict.PASS : Report.Verdict.WARN,
-				clientErrors + " requests without an HTTP response (not server errors)");
+		// A few unanswered requests are a warning. If many never got an answer, too
+		// little
+		// was actually tested to call the run a pass.
+		long total = this.run.reserves.size();
+		Report.Verdict verdict = (clientErrors == 0) ? Report.Verdict.PASS
+				: (clientErrors * 10 > total) ? Report.Verdict.FAIL : Report.Verdict.WARN;
+		this.run.report.check("Client-side errors (timeouts, refused)", verdict, clientErrors + " of " + total
+				+ " requests without an HTTP response (not server errors; FAIL above 10%)");
 	}
 
 	/**
@@ -149,7 +154,7 @@ final class Reconciliation {
 				found = true;
 			}
 		}
-		return found ? (long) sum : -1;
+		return found ? (long) sum : 0;
 	}
 
 }
