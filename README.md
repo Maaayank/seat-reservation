@@ -39,6 +39,7 @@ Service: `http://localhost:8080`.
 - **409** `seat_taken` · `per_user_limit` · `idempotency_key_reuse` (same key, different seats). Never a 5xx for a race.
 - **Idempotency.** Keys are per user. Same key + same request → 201 with the original body and `Idempotent-Replayed: true`. Only successes are stored, so a declined key can be retried.
 - **Cancel.** Frees only the seats that still point at that reservation, so a cancel can never release a seat that now belongs to someone else. The user's per-show count goes down, and the seats are bookable again at once.
+- **Fast-decline layers** (decline only, never grant): L2 in-memory sold set → L1 non-locking read → L3 one in-flight DB attempt per seat. They skip seats the requester owns, so idempotent retries still replay. Each can be switched off (`LAYER_SOLD_SET`, `LAYER_READ_CHECK`, `LAYER_SEAT_CLAIM`); the test suite runs with all on and all off. Metric: `reservations_decline_path_total{layer}`.
 - **Atomic decision.** One transaction: claim the idempotency key → add to the per-user quota row (guarded update) → lock the seat rows in label order (`SELECT … FOR UPDATE`) → write. One lock order everywhere, so no deadlocks. Cancel uses the same order (reservation row → quota row → seats by label).
 
 ## Auth

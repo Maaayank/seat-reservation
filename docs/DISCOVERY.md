@@ -35,6 +35,8 @@ Legend:
 | D19 | 2026-10-04 | DB timeouts set once per pooled connection (Hikari `connection-init-sql`), not `SET LOCAL` per transaction. Same effect, one less round trip. |
 | D20 | 2026-10-04 | Cancel lock order: reservation row → quota row → seat rows by label (same order as reserve). Wrong order deadlocked in 3 of 4 mutation runs. |
 | D21 | 2026-10-04 | All work on one branch: `feature/seat-reservation`. |
+| D22 | 2026-10-04 | L1/L2 decline only seats owned by another user (else an idempotent retry would get 409 instead of its replay). L2 maps seat → (reservation, user); cancel writes a reservation tombstone, so a late "mark sold" cannot leave a stale entry. |
+| D23 | 2026-10-04 | Measured (500-user hot seat, local container): DB declines 499 → 0 with layers on; server p50 7 → 2 ms, p99 272 → 191 ms. Client-bound; Phase 7 burst tool re-measures. |
 
 ---
 
