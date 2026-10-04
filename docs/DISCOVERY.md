@@ -33,7 +33,7 @@ Legend:
 | D17 | 2026-10-04 | Local runtime: Podman (WSL machine) or Docker. |
 | D18 | 2026-10-04 | GitHub repo: user creates it later. Auth via `gh auth login`. Push only after approval. |
 | D19 | 2026-10-04 | DB timeouts set once per pooled connection (Hikari `connection-init-sql`), not `SET LOCAL` per transaction. Same effect, one less round trip. |
-| D20 | 2026-10-04 | Cancel must lock quota row before seat rows (same order as reserve). Else a user's own reserve and cancel can deadlock. |
+| D20 | 2026-10-04 | Cancel lock order: reservation row → quota row → seat rows by label (same order as reserve). Wrong order deadlocked in 3 of 4 mutation runs. |
 | D21 | 2026-10-04 | All work on one branch: `feature/seat-reservation`. |
 
 ---

@@ -29,6 +29,7 @@ Service: `http://localhost:8080`.
 | `GET /shows/{id}` | Per-seat status and counts. `available + held + confirmed == total`, read in one query. Public. |
 | `POST /auth/tokens` | Mint user tokens in bulk (admin: `X-Admin-Key`). Body: `{"user_ids": ["u1", "u2"]}` (max 10,000). |
 | `GET /auth/me` | Returns the caller's `user_id` from the token. |
+| `POST /reservations/{id}/cancel` | Owner-only cancel. 200 with `status: "cancelled"`. Idempotent. Another user's reservation → 404. |
 | `POST /shows/{id}/reserve` | Reserve seats for the token's user. Body: `{"seats": ["A12"]}`. Idempotency key in the `Idempotency-Key` header (or `idempotency_key` in the body). |
 
 ## Reserve semantics
@@ -37,7 +38,8 @@ Service: `http://localhost:8080`.
 - **201** `{reservation_id, show_id, user_id, seats, amount_paise, status: "confirmed"}`.
 - **409** `seat_taken` · `per_user_limit` · `idempotency_key_reuse` (same key, different seats). Never a 5xx for a race.
 - **Idempotency.** Keys are per user. Same key + same request → 201 with the original body and `Idempotent-Replayed: true`. Only successes are stored, so a declined key can be retried.
-- **Atomic decision.** One transaction: claim the idempotency key → add to the per-user quota row (guarded update) → lock the seat rows in label order (`SELECT … FOR UPDATE`) → write. One lock order everywhere, so no deadlocks.
+- **Cancel.** Frees only the seats that still point at that reservation, so a cancel can never release a seat that now belongs to someone else. The user's per-show count goes down, and the seats are bookable again at once.
+- **Atomic decision.** One transaction: claim the idempotency key → add to the per-user quota row (guarded update) → lock the seat rows in label order (`SELECT … FOR UPDATE`) → write. One lock order everywhere, so no deadlocks. Cancel uses the same order (reservation row → quota row → seats by label).
 
 ## Auth
 
