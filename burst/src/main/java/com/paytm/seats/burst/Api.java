@@ -8,7 +8,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -150,6 +149,10 @@ final class Api {
 			return JSON.readTree(this.body);
 		}
 
+		String reservationId() {
+			return json().get("reservation_id").asString();
+		}
+
 		boolean isReplay() {
 			return "true".equals(this.replayed);
 		}
@@ -174,20 +177,6 @@ final class Api {
 			}
 		}
 
-	}
-
-	static List<String> labels(int rows, int perRow) {
-		List<String> labels = new ArrayList<>(rows * perRow);
-		for (int r = 0; r < rows; r++) {
-			for (int c = 1; c <= perRow; c++) {
-				labels.add(rowName(r) + c);
-			}
-		}
-		return labels;
-	}
-
-	static String rowName(int row) {
-		return (row < 26) ? String.valueOf((char) ('A' + row)) : "R" + row;
 	}
 
 }
