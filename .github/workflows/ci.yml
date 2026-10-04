@@ -44,6 +44,9 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+      # GHCR image names must be lowercase; the owner name is not.
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -57,7 +60,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/seat-reservation:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/seat-reservation:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
