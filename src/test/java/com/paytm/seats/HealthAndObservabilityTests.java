@@ -9,13 +9,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-		// Spring Boot disables metrics export in tests by default.
-		properties = "management.prometheus.metrics.export.enabled=true")
+@IntegrationTest
 class HealthAndObservabilityTests {
 
 	private final HttpClient http = HttpClient.newHttpClient();

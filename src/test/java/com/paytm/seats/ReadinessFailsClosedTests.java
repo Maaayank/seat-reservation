@@ -24,7 +24,8 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 @DirtiesContext
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-		properties = "spring.datasource.hikari.connection-timeout=1000")
+		properties = { "spring.datasource.hikari.connection-timeout=1000",
+			"seats.admin-api-key=" + IntegrationTest.ADMIN_KEY })
 class ReadinessFailsClosedTests {
 
 	@Container
