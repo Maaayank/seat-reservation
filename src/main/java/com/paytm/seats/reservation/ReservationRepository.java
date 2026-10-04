@@ -58,6 +58,22 @@ class ReservationRepository {
 	}
 
 	/**
+	 * L1 read (outside any transaction, no locks): is any of these seats held
+	 * or confirmed by another user? Seats the requester owns do not count, so
+	 * an idempotent retry still reaches the transaction and replays.
+	 */
+	boolean anyTakenByOther(UUID showId, String[] labels, String userId) {
+		return this.jdbc.sql("""
+				SELECT EXISTS (
+				  SELECT 1 FROM seats
+				   WHERE show_id = ? AND label = ANY(?)
+				     AND owner_user_id IS DISTINCT FROM ?
+				     AND (status = 'CONFIRMED' OR (status = 'HELD' AND hold_expires_at > now()))
+				)
+				""").params(showId, labels, userId).query(Boolean.class).single();
+	}
+
+	/**
 	 * Step 3. Locks the requested seat rows in label order (deterministic, so
 	 * two multi-seat requests cannot deadlock) and returns their latest state.
 	 * After a lock wait, READ COMMITTED re-reads the newest row version, so a
