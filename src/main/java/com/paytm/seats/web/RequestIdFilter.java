@@ -28,6 +28,9 @@ public class RequestIdFilter extends OncePerRequestFilter {
 	public static final String HEADER = "X-Request-Id";
 	public static final String MDC_KEY = "request_id";
 
+	/** Set by the bearer token filter; cleared here after the access log line. */
+	private static final String USER_MDC_KEY = "user_id";
+
 	private static final Pattern VALID_ID = Pattern.compile("[A-Za-z0-9._-]{1,64}");
 	private static final Logger ACCESS_LOG = LoggerFactory.getLogger("access");
 
@@ -52,6 +55,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
 					.log("request completed");
 			}
 			MDC.remove(MDC_KEY);
+			MDC.remove(USER_MDC_KEY);
 		}
 	}
 
