@@ -114,6 +114,17 @@ final class Api {
 					}
 					Thread.sleep(50L * attempt);
 				}
+				catch (IOException ex) {
+					// The server (or its edge) caps parallel HTTP/2 streams per
+					// connection; the
+					// JDK client fails the request instead of queueing it. It was never
+					// sent,
+					// so retrying is safe.
+					if (!String.valueOf(ex.getMessage()).contains("too many concurrent streams") || attempt == 50) {
+						throw ex;
+					}
+					Thread.sleep(20L * Math.min(attempt, 10));
+				}
 			}
 		}
 		catch (HttpTimeoutException ex) {
