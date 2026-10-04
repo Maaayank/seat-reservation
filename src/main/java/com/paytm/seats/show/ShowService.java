@@ -44,12 +44,13 @@ public class ShowService {
 	}
 
 	public ShowView get(String rawId) {
-		UUID id = parseId(rawId);
+		UUID id = parseShowId(rawId);
 		Show show = this.shows.findById(id).orElseThrow(ShowService::notFound);
 		return ShowView.of(show, this.shows.findSeats(id));
 	}
 
-	private static UUID parseId(String rawId) {
+	/** Parses a show id from a path; malformed ids are reported as not found. */
+	public static UUID parseShowId(String rawId) {
 		try {
 			return UUID.fromString(rawId);
 		}

@@ -46,6 +46,10 @@ public class ShowRepository {
 			.optional();
 	}
 
+	public List<String> findSeatLabels(UUID showId) {
+		return this.jdbc.sql("SELECT label FROM seats WHERE show_id = ?").param(showId).query(String.class).list();
+	}
+
 	/**
 	 * All seats of a show in one statement, so the result is one consistent
 	 * snapshot. An expired hold reads as available.
