@@ -3,7 +3,9 @@ package com.paytm.seats.observability;
 import com.paytm.seats.common.ErrorCode;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,6 +25,8 @@ public class ReservationMetrics {
 	private final MeterRegistry registry;
 
 	private final SeatGauges gauges;
+
+	private final Map<Key, Counter> counters = new ConcurrentHashMap<>();
 
 	ReservationMetrics(MeterRegistry registry, SeatGauges gauges) {
 		this.registry = registry;
@@ -55,16 +59,23 @@ public class ReservationMetrics {
 	}
 
 	private void declined(UUID showId, String reason) {
-		Counter.builder("reservations.declined")
-			.description("Reserve requests that did not create a reservation, by reason")
-			.tag("show_id", showId.toString())
-			.tag("reason", reason)
-			.register(this.registry)
+		this.counters
+			.computeIfAbsent(new Key("reservations.declined", showId, reason),
+					(key) -> Counter.builder(key.name())
+						.description("Reserve requests that did not create a reservation, by reason")
+						.tag("show_id", showId.toString())
+						.tag("reason", reason)
+						.register(this.registry))
 			.increment();
 	}
 
 	private Counter counter(String name, UUID showId) {
-		return Counter.builder(name).tag("show_id", showId.toString()).register(this.registry);
+		return this.counters.computeIfAbsent(new Key(name, showId, null),
+				(key) -> Counter.builder(name).tag("show_id", showId.toString()).register(this.registry));
+	}
+
+	/** Cache key: building and registering a counter on every request costs CPU. */
+	private record Key(String name, UUID showId, String reason) {
 	}
 
 }
