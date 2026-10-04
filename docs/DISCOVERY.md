@@ -32,6 +32,9 @@ Legend:
 | D16 | 2026-10-04 | No audit endpoint. |
 | D17 | 2026-10-04 | Local runtime: Podman (WSL machine) or Docker. |
 | D18 | 2026-10-04 | GitHub repo: user creates it later. Auth via `gh auth login`. Push only after approval. |
+| D19 | 2026-10-04 | DB timeouts set once per pooled connection (Hikari `connection-init-sql`), not `SET LOCAL` per transaction. Same effect, one less round trip. |
+| D20 | 2026-10-04 | Cancel must lock quota row before seat rows (same order as reserve). Else a user's own reserve and cancel can deadlock. |
+| D21 | 2026-10-04 | All work on one branch: `feature/seat-reservation`. |
 
 ---
 
@@ -383,7 +386,7 @@ Rejected: Redis, Kafka, JPA/Hibernate on the hot path, Spring Security, WebFlux.
 | R6 | Known DB errors (unique violation, serialization). | Map to 4xx with reason. | H |
 | R7 | Too much total concurrency. | Fair semaphore in front of DB work. Queue, never shed. No 503/429 (graders expect 409). | M |
 
-DB timeouts (set per transaction with `SET LOCAL`):
+DB timeouts (set once per pooled connection, D19):
 - `lock_timeout` ≈ 5 s. Safety net. Maps to 500 (D12). Alert on it.
 - `statement_timeout` ≈ 10 s.
 
