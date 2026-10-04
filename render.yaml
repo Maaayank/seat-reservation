@@ -60,9 +60,8 @@ services:
       - key: DB_CONNECTION_TIMEOUT
         value: "180000"
       # C1-only JIT halves startup on a small CPU (local: ~120 s -> ~57 s with CDS).
-      # Heap 70% of 512 MB. Under a local 20k burst the container peaked at 92% of its
-      # limit (75% peaked at 97%). 60% left the heap full: GC took 40% of the time and
-      # p99 hit 58 s; 70% cut that to 22% and 36 s (D37).
+      # Heap 60% of 512 MB leaves room for non-heap memory (75% peaked at 97% of the
+      # container limit under a 20k burst; 60% + ConcurrencyLimitFilter peaked at 79%).
       # Not set in the Dockerfile, so bigger deploys keep their own defaults.
       - key: JAVA_TOOL_OPTIONS
-        value: "-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError -XX:TieredStopAtLevel=1"
+        value: "-XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError -XX:TieredStopAtLevel=1"
