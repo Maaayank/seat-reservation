@@ -54,12 +54,17 @@ public class DeclineLayers {
 			.register(registry);
 	}
 
-	/** L2 then L1. Returns true if the request can be declined as seat_taken now. */
-	public boolean declineEarly(UUID showId, List<String> seats, String userId) {
+	/** L2, in memory. Returns true if the request can be declined as seat_taken now. */
+	public boolean declineFromMemory(UUID showId, List<String> seats, String userId) {
 		if (this.config.soldSet() && this.sold.anyOwnedByOther(showId, seats, userId)) {
 			this.declines.get("l2_sold_set").increment();
 			return true;
 		}
+		return false;
+	}
+
+	/** L1, one DB read. Returns true if the request can be declined as seat_taken now. */
+	public boolean declineByRead(UUID showId, List<String> seats, String userId) {
 		if (this.config.readCheck() && this.ownership.anyTakenByOther(showId, seats, userId)) {
 			this.declines.get("l1_read").increment();
 			return true;

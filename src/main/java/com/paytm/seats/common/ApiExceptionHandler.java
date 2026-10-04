@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.util.DisconnectedClientHelper;
 
 /**
  * Maps exceptions to the error contract. Domain outcomes and bad requests are 4xx.
@@ -53,8 +54,16 @@ public class ApiExceptionHandler {
 		return respond(ErrorCode.NOT_FOUND, "no such endpoint");
 	}
 
+	/**
+	 * A 500 with its stack trace. A client that hung up before its answer was written
+	 * (broken pipe, reset) is not a server fault: one DEBUG line, and nothing to write.
+	 */
 	@ExceptionHandler(Exception.class)
 	ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {
+		if (DisconnectedClientHelper.isClientDisconnectedException(ex)) {
+			log.debug("client disconnected before the response was written: {}", ex.getMessage());
+			return null;
+		}
 		log.error("unhandled exception", ex);
 		return respond(ErrorCode.INTERNAL_ERROR, "unexpected server error");
 	}
