@@ -56,7 +56,7 @@ public final class Burst {
 		}
 		int inFlight = (maxInFlight != null) ? maxInFlight : profile.maxInFlight;
 		Api api = new Api(baseUrl, adminKey, inFlight, streamsPerConnection, Duration.ofSeconds(60));
-		Api pollerApi = new Api(baseUrl, adminKey, 2, streamsPerConnection, Duration.ofSeconds(10));
+		Api pollerApi = new Api(baseUrl, adminKey, 2, streamsPerConnection, Duration.ofSeconds(30));
 		System.out.printf(Locale.ROOT, "burst -> %s | profile %s | max in flight %d | %d connections x %d streams%n",
 				baseUrl, profile.name().toLowerCase(Locale.ROOT), inFlight, api.connectionCount(),
 				streamsPerConnection);
