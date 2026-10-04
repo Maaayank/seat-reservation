@@ -23,11 +23,6 @@ public class ShowCatalog {
 		this.shows = shows;
 	}
 
-	/** The cached entry, or empty if it is not cached yet. Never reads the DB. */
-	public Optional<Entry> findCached(UUID showId) {
-		return Optional.ofNullable(this.cache.getIfPresent(showId));
-	}
-
 	public Optional<Entry> find(UUID showId) {
 		Entry cached = this.cache.getIfPresent(showId);
 		if (cached != null) {
