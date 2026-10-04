@@ -1,0 +1,47 @@
+# What should page someone at 2 am (docs/DISCOVERY.md §11.4).
+groups:
+  - name: seat-reservation
+    rules:
+      - alert: ServiceDown
+        expr: up{job="seat-reservation"} == 0
+        for: 1m
+        labels: { severity: page }
+        annotations:
+          summary: Seat reservation service is not being scraped (down or unreachable).
+
+      - alert: ServerErrors
+        expr: sum(increase(http_server_requests_seconds_count{status=~"5.."}[1m])) > 0
+        for: 1m
+        labels: { severity: page }
+        annotations:
+          summary: The service returned 5xx responses. Declines must be 4xx; any 5xx is a bug or an outage.
+
+      - alert: SeatInvariantBroken
+        expr: sum by (show_id) (seats) != sum by (show_id) (seats_capacity)
+        for: 1m
+        labels: { severity: page }
+        annotations:
+          summary: available + held + confirmed != total seats for show {{ $labels.show_id }}.
+
+      - alert: DbPoolSaturated
+        expr: max(hikaricp_connections_pending) > 0
+        for: 2m
+        labels: { severity: page }
+        annotations:
+          summary: Requests are queueing for DB connections; 5xx risk if it continues.
+
+      - alert: ReserveLatencyHigh
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le) (rate(http_server_requests_seconds_bucket{uri="/shows/{showId}/reserve"}[5m]))) > 1
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: Reserve p99 latency above 1s.
+
+      - alert: SeatClaimTimeouts
+        expr: increase(reservations_seat_claim_timeouts_total[5m]) > 0
+        for: 0m
+        labels: { severity: ticket }
+        annotations:
+          summary: L3 seat claims are timing out; hot-seat requests are falling through to the DB.
