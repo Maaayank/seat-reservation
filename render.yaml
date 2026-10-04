@@ -1,0 +1,36 @@
+# Render Blueprint: the live demo (free tier). See docs/DEPLOY.md.
+# Database: Neon free Postgres (Render's free Postgres expires after 30 days).
+services:
+  - name: seat-reservation
+    type: web
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /readyz
+    # Deploy main only after GitHub CI passes.
+    autoDeployTrigger: checksPass
+    envVars:
+      # Neon direct (non-pooler) endpoint, same region (ap-southeast-1). Set in the dashboard.
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_USERNAME
+        sync: false
+      - key: DATABASE_PASSWORD
+        sync: false
+      # Generated once by Render; read ADMIN_API_KEY from the dashboard to mint tokens.
+      - key: ADMIN_API_KEY
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_POOL_SIZE
+        value: "10"
+      # 0.1 CPU drains a burst at ~13 req/s. A long pool wait turns overload into slow
+      # answers instead of 500s (measured: 110 x 5xx at 30 s, 0 at 180 s).
+      - key: DB_CONNECTION_TIMEOUT
+        value: "180000"
+      # 0.1 CPU: C1-only JIT halves startup (measured ~120 s -> ~57 s with CDS).
+      # Not set in the Dockerfile, so bigger deploys keep the full JIT.
+      - key: JAVA_TOOL_OPTIONS
+        value: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -XX:TieredStopAtLevel=1"

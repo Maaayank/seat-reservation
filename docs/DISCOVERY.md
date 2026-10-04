@@ -40,6 +40,8 @@ Legend:
 | D25 | 2026-10-04 | Gauges are registered once and updated in place. `MultiGauge` overwrite re-registers series each refresh, so a scrape mid-refresh missed series (seen as a flaky test). |
 | D26 | 2026-10-04 | Burst full profile (20k) passes all checks inside the compose network (p99 1.25 s). Through the Podman Windows port forwarder, ~7.7k connections dropped with no response; server counters prove those requests never reached the app. README tells users to run full-scale local bursts in-network. |
 | D27 | 2026-10-04 | Clean-code phase: package-by-feature (common, config, auth, show, reservation, reservation.layers, observability); reservation flow split into validator, transaction, cancel service, orchestrator; ErrorCode/ReservationStatus enums; spring-javaformat enforced; V1+V2 migrations merged (nothing deployed yet). |
+| D28 | 2026-10-04 | Render deploys main with `autoDeployTrigger: checksPass` (no deploy hook). `/actuator/info` shows `RENDER_GIT_COMMIT`; post-deploy job waits for it, then runs smoke burst. GHCR multi-arch image on main. |
+| D29 | 2026-10-04 | Free tier measured at 0.1 CPU / 512 MB: startup 163 s plain, 120 s CDS, 57 s CDS + C1-only JIT (Java 25 AOT cache and lazy init gave no gain). Smoke burst: 30 s pool wait → 110 x 5xx; 180 s → 0 x 5xx, PASS, but ~13 req/s and 202/1500 client timeouts. Free tier is correct but cannot absorb a 20k burst quickly. |
 | D23 | 2026-10-04 | Measured (500-user hot seat, local container): DB declines 499 → 0 with layers on; server p50 7 → 2 ms, p99 272 → 191 ms. Client-bound; Phase 7 burst tool re-measures. |
 
 ---

@@ -16,7 +16,7 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Test (unit + integration via Testcontainers)
+      - name: Test (format check, unit, integration via Testcontainers)
         run: ./mvnw -B verify
 
       - name: Build burst tool
@@ -31,3 +31,33 @@ jobs:
 
       - name: Build container image
         run: docker build -t seat-reservation:${{ github.sha }} .
+
+  # main only: publish a multi-arch image (amd64 + arm64). Render builds from the
+  # Dockerfile itself; this image is for the ARM fallback host and for anyone who
+  # wants to run the exact tested build.
+  publish-image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/seat-reservation:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/seat-reservation:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
