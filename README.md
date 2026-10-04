@@ -88,7 +88,9 @@ What it does, on one fresh show:
 6. Cancel racing rebookers on won seats.
 7. Final reconciliation: counts add up, confirmed seats equal what clients were told, Prometheus counters equal client-observed outcomes, `seats` gauge equals the API.
 
-Requests that get no HTTP response (timeouts, dropped connections) are reported separately as client-side errors, never as 5xx.
+Requests that get no HTTP response (timeouts, dropped connections) are reported separately as client-side errors, never as 5xx. A 5xx is labelled `(app)` when it carries this service's JSON error body (with `request_id`) and `(edge)` when it came from a proxy in front of it.
+
+Behind a TLS-inspecting corporate proxy on Windows, Java may fail with `PKIX path building failed`. Use the Windows trust store: `JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStoreType=Windows-ROOT ./burst.sh ...`.
 
 Measured locally (`full`, run inside the compose network):
 
@@ -98,7 +100,7 @@ latency p50 219 ms | p95 936 ms | p99 1254 ms
 RESULT: PASS   (0 5xx, 10/10 hot seats with exactly one winner, metrics reconcile exactly)
 ```
 
-> **Capacity note.** The live demo runs on a free tier (small CPU, sleeps when idle; first request after idle can take ~60 s). Use `--profile smoke` against it. Run `full` against your own deploy, or locally with `make up && make burst-in-network`.
+> **Capacity note.** The live demo runs on Render's free tier (shared ~0.1 CPU, 512 MB, sleeps when idle; the first request after idle can take ~60 s). Measured live once warm: smoke profile at 79–101 req/s with zero 5xx. Bursts sent while the instance is cold or waking can get 5xx from Render's edge before requests reach the app (the app itself returned none). Use `--profile smoke` against it. Run `full` against your own deploy, or locally with `make up && make burst-in-network`.
 > Bursting a local stack through the host port (`localhost:8080`) with thousands of connections can hit the container runtime's port forwarder (we saw dropped connections with Podman on Windows). The server never sees those requests; the tool reports them as client-side errors. Running inside the compose network avoids it.
 
 ## Observability

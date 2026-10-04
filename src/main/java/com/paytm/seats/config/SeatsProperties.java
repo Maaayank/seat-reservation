@@ -26,6 +26,7 @@ public record SeatsProperties(
 		@DefaultValue("10000") @Min(1) @Max(100_000) int maxSeatsPerShow,
 		@DefaultValue("4") @Min(1) int defaultPerUserLimit,
 		@DefaultValue("10000") @Min(1) @Max(100_000) int maxTokensPerRequest,
+		@DefaultValue("64") @Min(1) @Max(10_000) int maxConcurrentRequests,
 		@DefaultValue @Valid Layers layers) {
 // @formatter:on
 
