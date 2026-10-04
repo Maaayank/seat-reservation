@@ -25,6 +25,7 @@ services:
       DATABASE_USERNAME: seats
       DATABASE_PASSWORD: seats
       ADMIN_API_KEY: ${ADMIN_API_KEY:-local-admin-key}
+      JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-change-me-0123456789abcdef}
     ports:
       - "8080:8080"
     restart: unless-stopped
