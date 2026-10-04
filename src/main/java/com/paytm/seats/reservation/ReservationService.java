@@ -3,6 +3,7 @@ package com.paytm.seats.reservation;
 import com.paytm.seats.auth.AuthenticatedUser;
 import com.paytm.seats.common.ApiException;
 import com.paytm.seats.common.ErrorCode;
+import com.paytm.seats.common.ProcessingSlots;
 import com.paytm.seats.observability.ReservationMetrics;
 import com.paytm.seats.reservation.layers.DeclineLayers;
 import com.paytm.seats.reservation.layers.SeatClaims;
@@ -10,6 +11,7 @@ import com.paytm.seats.show.Show;
 import com.paytm.seats.show.ShowCatalog;
 import com.paytm.seats.show.ShowService;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,10 +22,15 @@ import org.springframework.stereotype.Service;
  *
  * <pre>
  * validate (no DB)                         → 4xx on bad input or over-limit
- * fast-decline: L2 sold set, L1 read       → 409 seat_taken, no transaction
+ * fast-decline: L2 sold set (no DB)        → 409 seat_taken
+ * ---- take a processing slot ----
+ * fast-decline: L1 read                    → 409 seat_taken, no transaction
  * L3 per-seat claim (one DB attempt/seat)  → waiters re-check L2 when it is their turn
  * ReserveTransaction                       → the only step that grants seats
  * </pre>
+ *
+ * Everything above the slot runs in memory, so a request for a sold seat is answered at
+ * once instead of queueing behind seat sales ({@link ProcessingSlots}).
  *
  * The layers only ever decline, and only for seats owned by another user, so an
  * idempotent retry always reaches the transaction and replays (D22). Every outcome is
@@ -42,12 +49,15 @@ class ReservationService {
 
 	private final ReservationMetrics metrics;
 
+	private final ProcessingSlots slots;
+
 	ReservationService(ShowCatalog catalog, DeclineLayers layers, ReserveTransaction transaction,
-			ReservationMetrics metrics) {
+			ReservationMetrics metrics, ProcessingSlots slots) {
 		this.catalog = catalog;
 		this.layers = layers;
 		this.transaction = transaction;
 		this.metrics = metrics;
+		this.slots = slots;
 	}
 
 	/**
@@ -56,7 +66,7 @@ class ReservationService {
 	 */
 	ReserveOutcome reserve(AuthenticatedUser user, String rawShowId, ReserveRequest request, String headerKey) {
 		UUID showId = ShowService.parseShowId(rawShowId);
-		ShowCatalog.Entry entry = this.catalog.find(showId)
+		ShowCatalog.Entry entry = findShow(showId)
 			.orElseThrow(() -> new ApiException(ErrorCode.SHOW_NOT_FOUND, "show not found"));
 		ReserveOutcome outcome;
 		List<String> seats = List.of();
@@ -72,8 +82,28 @@ class ReservationService {
 		return outcome;
 	}
 
+	/** From the cache; a miss reads the DB, so it takes a processing slot. */
+	private Optional<ShowCatalog.Entry> findShow(UUID showId) {
+		Optional<ShowCatalog.Entry> cached = this.catalog.findCached(showId);
+		if (cached.isPresent()) {
+			return cached;
+		}
+		try (ProcessingSlots.Slot slot = this.slots.acquire()) {
+			return this.catalog.find(showId);
+		}
+	}
+
 	private ReserveOutcome decide(AuthenticatedUser user, Show show, String key, List<String> seats) {
-		if (this.layers.declineEarly(show.id(), seats, user.id())) {
+		if (this.layers.declineFromMemory(show.id(), seats, user.id())) {
+			return seatTaken();
+		}
+		try (ProcessingSlots.Slot slot = this.slots.acquire()) {
+			return decideWithDatabase(user, show, key, seats);
+		}
+	}
+
+	private ReserveOutcome decideWithDatabase(AuthenticatedUser user, Show show, String key, List<String> seats) {
+		if (this.layers.declineByRead(show.id(), seats, user.id())) {
 			return seatTaken();
 		}
 		long amount = Math.multiplyExact(show.pricePaise(), (long) seats.size());
