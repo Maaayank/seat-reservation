@@ -1,6 +1,7 @@
 package com.paytm.seats.show;
 
 import com.paytm.seats.config.SeatsProperties;
+import com.paytm.seats.reservation.SeatGauges;
 import com.paytm.seats.web.ApiException;
 import java.util.HashSet;
 import java.util.List;
@@ -16,9 +17,12 @@ public class ShowService {
 
 	private final SeatsProperties properties;
 
-	public ShowService(ShowRepository shows, SeatsProperties properties) {
+	private final SeatGauges gauges;
+
+	public ShowService(ShowRepository shows, SeatsProperties properties, SeatGauges gauges) {
 		this.shows = shows;
 		this.properties = properties;
+		this.gauges = gauges;
 	}
 
 	@Transactional
@@ -37,6 +41,7 @@ public class ShowService {
 		Show show = new Show(UUID.randomUUID(), request.name(), request.pricePaise(), perUserLimit, labels.size());
 		this.shows.insert(show);
 		this.shows.insertSeats(show.id(), labels);
+		this.gauges.markDirty();
 		List<ShowView.SeatView> seats = labels.stream()
 			.map((label) -> new ShowView.SeatView(label, SeatStatus.AVAILABLE))
 			.toList();

@@ -68,6 +68,10 @@ management:
   metrics:
     tags:
       application: seat-reservation
+    distribution:
+      # Buckets for histogram_quantile() latency panels and alerts.
+      percentiles-histogram:
+        http.server.requests: true
 
 logging:
   structured:

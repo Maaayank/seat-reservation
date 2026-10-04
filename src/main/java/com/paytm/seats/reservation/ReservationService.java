@@ -38,8 +38,11 @@ public class ReservationService {
 
 	private final DeclineLayers layers;
 
+	private final ReservationMetrics metrics;
+
 	ReservationService(ShowCatalog catalog, ReservationRepository repository, TransactionTemplate transactions,
-			ObjectMapper mapper, DeclineLayers layers) {
+			ObjectMapper mapper, DeclineLayers layers, ReservationMetrics metrics) {
+		this.metrics = metrics;
 		this.catalog = catalog;
 		this.repository = repository;
 		this.transactions = transactions;
@@ -51,7 +54,18 @@ public class ReservationService {
 		UUID showId = ShowService.parseShowId(rawShowId);
 		ShowCatalog.Entry entry = this.catalog.find(showId)
 			.orElseThrow(() -> ApiException.notFound("show_not_found", "show not found"));
-		Show show = entry.show();
+		try {
+			return reserve(user, entry.show(), entry, request, headerKey);
+		}
+		catch (ApiException ex) {
+			this.metrics.declined(showId, metricReason(ex.code()));
+			throw ex;
+		}
+	}
+
+	private ReserveResult reserve(AuthenticatedUser user, Show show, ShowCatalog.Entry entry, ReserveRequest request,
+			String headerKey) {
+		UUID showId = show.id();
 		String key = resolveKey(headerKey, request);
 		List<String> seats = validateSeats(request, entry);
 		if (seats.size() > show.perUserLimit()) {
@@ -94,6 +108,12 @@ public class ReservationService {
 			.addKeyValue("outcome", result.replayed() ? "idempotent_replay" : "confirmed")
 			.addKeyValue("reservation_id", result.reservation().reservationId())
 			.log("reserve decided");
+		if (result.replayed()) {
+			this.metrics.declined(showId, "idempotent_replay");
+		}
+		else {
+			this.metrics.confirmed(showId);
+		}
 		return result;
 	}
 
@@ -137,6 +157,14 @@ public class ReservationService {
 		return Objects.requireNonNull(result);
 	}
 
+	/** Maps an error code to the {@code reason} tag of reservations_declined_total. */
+	private static String metricReason(String code) {
+		return switch (code) {
+			case "seat_taken", "per_user_limit", "idempotency_key_reuse" -> code;
+			default -> "invalid";
+		};
+	}
+
 	private static ApiException seatTaken() {
 		return ApiException.conflict("seat_taken", "one or more seats are taken");
 	}
@@ -149,12 +177,12 @@ public class ReservationService {
 	 */
 	public ReservationView cancel(AuthenticatedUser user, String rawReservationId) {
 		UUID reservationId = parseReservationId(rawReservationId);
-		ReservationView result = this.transactions.execute((tx) -> {
+		CancelOutcome outcome = this.transactions.execute((tx) -> {
 			ReservationRepository.StoredReservation stored = this.repository.lockReservation(reservationId)
 				.filter((r) -> r.userId().equals(user.id()))
 				.orElseThrow(ReservationService::reservationNotFound);
 			if ("CANCELLED".equals(stored.status())) {
-				return view(stored, "cancelled");
+				return new CancelOutcome(view(stored, "cancelled"), false);
 			}
 			this.repository.releaseQuota(stored.showId(), stored.userId(), stored.seats().size());
 			int released = this.repository.releaseSeats(stored.showId(), reservationId);
@@ -163,10 +191,14 @@ public class ReservationService {
 						+ stored.seats().size() + " seats");
 			}
 			this.repository.markCancelled(reservationId);
-			return view(stored, "cancelled");
+			return new CancelOutcome(view(stored, "cancelled"), true);
 		});
-		Objects.requireNonNull(result);
-		this.layers.released(result.showId(), result.seats(), reservationId);
+		Objects.requireNonNull(outcome);
+		ReservationView result = outcome.view();
+		if (outcome.changed()) {
+			this.layers.released(result.showId(), result.seats(), reservationId);
+			this.metrics.cancelled(result.showId());
+		}
 		log.atInfo()
 			.addKeyValue("show_id", result.showId())
 			.addKeyValue("seats", result.seats())
@@ -243,6 +275,9 @@ public class ReservationService {
 			.addKeyValue("reason", reason.code())
 			.log("reserve decided");
 		return reason;
+	}
+
+	private record CancelOutcome(ReservationView view, boolean changed) {
 	}
 
 	/** Outcome of the transaction: exactly one of reservation or declined is set. */
