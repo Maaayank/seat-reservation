@@ -106,6 +106,58 @@ public class ReservationService {
 		return result;
 	}
 
+	/**
+	 * Owner-only cancel. Lock order: reservation row → quota row → seat rows by
+	 * label (same as reserve, so the two cannot deadlock). Idempotent: a second
+	 * cancel returns the same cancelled reservation. Another user's reservation
+	 * is reported as not found, so its existence is not revealed.
+	 */
+	public ReservationView cancel(AuthenticatedUser user, String rawReservationId) {
+		UUID reservationId = parseReservationId(rawReservationId);
+		ReservationView result = this.transactions.execute((tx) -> {
+			ReservationRepository.StoredReservation stored = this.repository.lockReservation(reservationId)
+				.filter((r) -> r.userId().equals(user.id()))
+				.orElseThrow(ReservationService::reservationNotFound);
+			if ("CANCELLED".equals(stored.status())) {
+				return view(stored, "cancelled");
+			}
+			this.repository.releaseQuota(stored.showId(), stored.userId(), stored.seats().size());
+			int released = this.repository.releaseSeats(stored.showId(), reservationId);
+			if (released != stored.seats().size()) {
+				throw new IllegalStateException("reservation " + reservationId + " owns " + released + " of "
+						+ stored.seats().size() + " seats");
+			}
+			this.repository.markCancelled(reservationId);
+			return view(stored, "cancelled");
+		});
+		Objects.requireNonNull(result);
+		log.atInfo()
+			.addKeyValue("show_id", result.showId())
+			.addKeyValue("seats", result.seats())
+			.addKeyValue("outcome", "cancelled")
+			.addKeyValue("reservation_id", reservationId)
+			.log("cancel decided");
+		return result;
+	}
+
+	private static ReservationView view(ReservationRepository.StoredReservation stored, String status) {
+		return new ReservationView(stored.id(), stored.showId(), stored.userId(), stored.seats(), stored.amountPaise(),
+				status);
+	}
+
+	private static UUID parseReservationId(String raw) {
+		try {
+			return UUID.fromString(raw);
+		}
+		catch (IllegalArgumentException ex) {
+			throw reservationNotFound();
+		}
+	}
+
+	private static ApiException reservationNotFound() {
+		return ApiException.notFound("reservation_not_found", "reservation not found");
+	}
+
 	private ReserveResult replay(String userId, String key, String requestHash) {
 		ReservationRepository.StoredKey stored = this.repository.findIdempotencyKey(userId, key)
 			.orElseThrow(() -> new IllegalStateException("idempotency key vanished after conflict"));

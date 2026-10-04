@@ -103,6 +103,63 @@ class ReservationRepository {
 				""").params(reservationId, responseJson, userId, key).update();
 	}
 
+	/** Cancel step 1. Locks the reservation row; parallel cancels of it queue here. */
+	Optional<StoredReservation> lockReservation(UUID reservationId) {
+		return this.jdbc.sql("""
+				SELECT id, show_id, user_id, seat_labels, amount_paise, status
+				FROM reservations WHERE id = ?
+				FOR UPDATE
+				""")
+			.param(reservationId)
+			.query((rs, n) -> new StoredReservation(rs.getObject("id", UUID.class), rs.getObject("show_id", UUID.class),
+					rs.getString("user_id"), List.of((String[]) rs.getArray("seat_labels").getArray()),
+					rs.getLong("amount_paise"), rs.getString("status")))
+			.optional();
+	}
+
+	/** Cancel step 2. Same lock order as reserve: quota row before seat rows. */
+	void releaseQuota(UUID showId, String userId, int seats) {
+		int updated = this.jdbc.sql("""
+				UPDATE user_show_quota SET seats_owned = seats_owned - ?
+				 WHERE show_id = ? AND user_id = ?
+				""").params(seats, showId, userId).update();
+		if (updated != 1) {
+			throw new IllegalStateException("missing quota row for " + userId + " on show " + showId);
+		}
+	}
+
+	/**
+	 * Cancel step 3. Frees only the seats that still point at this
+	 * reservation, locking them in label order (same order as reserve). A seat
+	 * that already belongs to someone else is never touched.
+	 */
+	int releaseSeats(UUID showId, UUID reservationId) {
+		return this.jdbc.sql("""
+				WITH locked AS (
+				  SELECT label FROM seats
+				   WHERE show_id = ? AND reservation_id = ?
+				   ORDER BY label
+				   FOR UPDATE
+				)
+				UPDATE seats s
+				   SET status = 'AVAILABLE', reservation_id = NULL, owner_user_id = NULL,
+				       hold_expires_at = NULL, updated_at = now()
+				  FROM locked
+				 WHERE s.show_id = ? AND s.label = locked.label
+				""").params(showId, reservationId, showId).update();
+	}
+
+	/** Cancel step 4. */
+	void markCancelled(UUID reservationId) {
+		this.jdbc.sql("UPDATE reservations SET status = 'CANCELLED', cancelled_at = now() WHERE id = ?")
+			.param(reservationId)
+			.update();
+	}
+
+	record StoredReservation(UUID id, UUID showId, String userId, List<String> seats, long amountPaise,
+			String status) {
+	}
+
 	record StoredKey(String requestHash, String responseJson) {
 	}
 

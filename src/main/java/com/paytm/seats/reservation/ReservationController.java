@@ -38,4 +38,10 @@ public class ReservationController {
 			.body(view);
 	}
 
+	/** Owner-only, idempotent. 200 with the reservation in status {@code cancelled}. */
+	@PostMapping("/reservations/{reservationId}/cancel")
+	public ReservationView cancel(AuthenticatedUser user, @PathVariable String reservationId) {
+		return this.service.cancel(user, reservationId);
+	}
+
 }
