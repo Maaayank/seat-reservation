@@ -71,6 +71,17 @@ final class ReservationFixtures {
 				Map.of("Authorization", "Bearer " + token, "Idempotency-Key", key));
 	}
 
+	TestHttp.Response cancel(String token, String reservationId) {
+		return this.http.post("/reservations/" + reservationId + "/cancel", "", Map.of("Authorization", "Bearer " + token));
+	}
+
+	/** Reserves and returns the reservation id; fails the test if not 201. */
+	String reserveOk(String token, String showId, List<String> seats) {
+		TestHttp.Response response = reserve(token, showId, seats, UUID.randomUUID().toString());
+		assertThat(response.status()).as(response.body()).isEqualTo(201);
+		return response.json().get("reservation_id").asString();
+	}
+
 	TestHttp.Response reserveWithBody(String token, String showId, String jsonBody, Map<String, String> headers) {
 		Map<String, String> all = new HashMap<>(headers);
 		all.put("Authorization", "Bearer " + token);
@@ -108,8 +119,8 @@ final class ReservationFixtures {
 	}
 
 	static String outcome(TestHttp.Response response) {
-		if (response.status() == 201) {
-			return "201";
+		if (response.status() < 300) {
+			return String.valueOf(response.status());
 		}
 		if (response.status() >= 500) {
 			return "5xx";
