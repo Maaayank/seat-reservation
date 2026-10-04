@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
  * validate (no DB)                         → 4xx on bad input or over-limit
  * fast-decline: L2 sold set (no DB)        → 409 seat_taken
  * ---- take a processing slot ----
- * fast-decline: L2 again, then L1 read     → 409 seat_taken, no transaction
+ * fast-decline: L1 read                    → 409 seat_taken, no transaction
  * L3 per-seat claim (one DB attempt/seat)  → waiters re-check L2 when it is their turn
  * ReserveTransaction                       → the only step that grants seats
  * </pre>
@@ -103,10 +103,7 @@ class ReservationService {
 	}
 
 	private ReserveOutcome decideWithDatabase(AuthenticatedUser user, Show show, String key, List<String> seats) {
-		// Check the sold set again: in a burst the seat is often sold while this request
-		// waited for its slot, and this check needs no DB call.
-		if (this.layers.declineFromMemory(show.id(), seats, user.id())
-				|| this.layers.declineByRead(show.id(), seats, user.id())) {
+		if (this.layers.declineByRead(show.id(), seats, user.id())) {
 			return seatTaken();
 		}
 		long amount = Math.multiplyExact(show.pricePaise(), (long) seats.size());
