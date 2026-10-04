@@ -2,6 +2,7 @@ package com.paytm.seats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.ConnectException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -36,9 +37,22 @@ public final class TestHttp {
 
 	private Response send(HttpRequest.Builder builder, Map<String, String> headers) {
 		headers.forEach(builder::header);
+		HttpRequest request = builder.build();
 		try {
-			HttpResponse<String> response = this.client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-			return new Response(response.statusCode(), response.body(), response);
+			for (int attempt = 1;; attempt++) {
+				try {
+					HttpResponse<String> response = this.client.send(request, HttpResponse.BodyHandlers.ofString());
+					return new Response(response.statusCode(), response.body(), response);
+				}
+				catch (ConnectException ex) {
+					// The connection was refused, so the server never saw the request:
+					// safe to retry. Happens on Windows when hundreds of sockets open at once.
+					if (attempt == 5) {
+						throw ex;
+					}
+					Thread.sleep(20L * attempt);
+				}
+			}
 		}
 		catch (IOException ex) {
 			throw new UncheckedIOException(ex);
