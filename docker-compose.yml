@@ -24,6 +24,7 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/seats
       DATABASE_USERNAME: seats
       DATABASE_PASSWORD: seats
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-local-admin-key}
     ports:
       - "8080:8080"
     restart: unless-stopped
