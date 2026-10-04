@@ -1,7 +1,8 @@
 package com.paytm.seats.auth;
 
+import com.paytm.seats.common.ApiException;
+import com.paytm.seats.common.ErrorCode;
 import com.paytm.seats.config.SeatsProperties;
-import com.paytm.seats.web.ApiException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -35,7 +36,7 @@ public class AuthController {
 	@PostMapping("/tokens")
 	public TokensResponse mint(@Valid @RequestBody TokensRequest request) {
 		if (request.userIds().size() > this.properties.maxTokensPerRequest()) {
-			throw ApiException.unprocessable("invalid_request",
+			throw new ApiException(ErrorCode.INVALID_REQUEST,
 					"at most " + this.properties.maxTokensPerRequest() + " user_ids per request");
 		}
 		Map<String, String> tokens = new LinkedHashMap<>();

@@ -1,6 +1,7 @@
 package com.paytm.seats.auth;
 
-import com.paytm.seats.web.ErrorResponse;
+import com.paytm.seats.common.ErrorCode;
+import com.paytm.seats.common.ErrorResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -56,7 +57,7 @@ public class BearerTokenFilter extends OncePerRequestFilter {
 			response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
 			response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 			this.mapper.writeValue(response.getOutputStream(),
-					ErrorResponse.of("unauthenticated", "valid bearer token required"));
+					ErrorResponse.of(ErrorCode.UNAUTHENTICATED, "valid bearer token required"));
 			return;
 		}
 		request.setAttribute(AuthenticatedUser.REQUEST_ATTRIBUTE, new AuthenticatedUser(userId.get()));

@@ -7,10 +7,8 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 /**
- * SQL for the reserve transaction (T1, docs/DISCOVERY.md §4.3.3). Every
- * method is one statement. Callers must run them inside one transaction and
- * in this order: idempotency → quota → seats (sorted) → writes. One global
- * lock order means no deadlock cycle.
+ * SQL for reserve and cancel. Each method is one statement and must run inside
+ * the caller's transaction, in the documented lock order.
  */
 @Repository
 class ReservationRepository {
@@ -21,10 +19,12 @@ class ReservationRepository {
 		this.jdbc = jdbc;
 	}
 
+	// ---- reserve ------------------------------------------------------------------
+
 	/**
-	 * Step 1. Claims the key. Returns false if the key already exists. If a
-	 * parallel transaction holds the same key, Postgres makes this insert wait
-	 * until that transaction ends, so the caller then sees its final result.
+	 * Claims the key; false if it already exists. If a parallel transaction holds
+	 * the same key, Postgres makes this insert wait until that transaction ends,
+	 * so the caller then sees its final result.
 	 */
 	boolean claimIdempotencyKey(String userId, String key, String requestHash, UUID showId) {
 		return this.jdbc.sql("""
@@ -42,12 +42,11 @@ class ReservationRepository {
 	}
 
 	/**
-	 * Step 2. Adds {@code seats} to the user's count for the show, only if the
-	 * result stays within {@code limit}. The row lock serialises one user's
-	 * parallel reserves for one show. Returns false when the limit would be
-	 * exceeded. Requires {@code seats <= limit} (checked before the transaction).
+	 * Adds {@code seats} to the user's count for the show, only if the result
+	 * stays within {@code limit}; false otherwise. The row lock serialises one
+	 * user's parallel reserves for one show. Caller guarantees {@code seats <= limit}.
 	 */
-	boolean reserveQuota(UUID showId, String userId, int seats, int limit) {
+	boolean addToQuota(UUID showId, String userId, int seats, int limit) {
 		return this.jdbc.sql("""
 				INSERT INTO user_show_quota (show_id, user_id, seats_owned)
 				VALUES (?, ?, ?)
@@ -58,26 +57,9 @@ class ReservationRepository {
 	}
 
 	/**
-	 * L1 read (outside any transaction, no locks): is any of these seats held
-	 * or confirmed by another user? Seats the requester owns do not count, so
-	 * an idempotent retry still reaches the transaction and replays.
-	 */
-	boolean anyTakenByOther(UUID showId, String[] labels, String userId) {
-		return this.jdbc.sql("""
-				SELECT EXISTS (
-				  SELECT 1 FROM seats
-				   WHERE show_id = ? AND label = ANY(?)
-				     AND owner_user_id IS DISTINCT FROM ?
-				     AND (status = 'CONFIRMED' OR (status = 'HELD' AND hold_expires_at > now()))
-				)
-				""").params(showId, labels, userId).query(Boolean.class).single();
-	}
-
-	/**
-	 * Step 3. Locks the requested seat rows in label order (deterministic, so
-	 * two multi-seat requests cannot deadlock) and returns their latest state.
-	 * After a lock wait, READ COMMITTED re-reads the newest row version, so a
-	 * seat confirmed by the lock holder is seen as taken.
+	 * Locks the seat rows in label order and returns their latest state. After a
+	 * lock wait, READ COMMITTED re-reads the newest row version, so a seat just
+	 * confirmed by the lock holder is seen as taken.
 	 */
 	List<LockedSeat> lockSeats(UUID showId, String[] labels) {
 		return this.jdbc.sql("""
@@ -93,17 +75,19 @@ class ReservationRepository {
 			.list();
 	}
 
-	/** Step 4. */
-	void insertReservation(UUID reservationId, UUID showId, String userId, String[] labels, long amountPaise) {
+	void insertReservation(ReservationView reservation) {
 		this.jdbc.sql("""
 				INSERT INTO reservations (id, show_id, user_id, seat_labels, amount_paise, status)
-				VALUES (?, ?, ?, ?, ?, 'CONFIRMED')
-				""").params(reservationId, showId, userId, labels, amountPaise).update();
+				VALUES (?, ?, ?, ?, ?, ?)
+				""")
+			.params(reservation.reservationId(), reservation.showId(), reservation.userId(),
+					reservation.seats().toArray(String[]::new), reservation.amountPaise(), reservation.status().name())
+			.update();
 	}
 
-	/** Step 5. Rows are already locked by step 3. */
-	int confirmSeats(UUID showId, String[] labels, UUID reservationId, String userId) {
-		return this.jdbc.sql("""
+	/** Rows are already locked by {@link #lockSeats}. */
+	void confirmSeats(UUID showId, String[] labels, UUID reservationId, String userId) {
+		this.jdbc.sql("""
 				UPDATE seats
 				   SET status = 'CONFIRMED', reservation_id = ?, owner_user_id = ?,
 				       hold_expires_at = NULL, updated_at = now()
@@ -111,7 +95,7 @@ class ReservationRepository {
 				""").params(reservationId, userId, showId, labels).update();
 	}
 
-	/** Step 6. Stores the response so a retry replays it exactly. */
+	/** Stores the 201 body so a retry with the same key replays it exactly. */
 	void completeIdempotencyKey(String userId, String key, UUID reservationId, String responseJson) {
 		this.jdbc.sql("""
 				UPDATE idempotency_keys SET reservation_id = ?, response_json = ?
@@ -119,22 +103,23 @@ class ReservationRepository {
 				""").params(reservationId, responseJson, userId, key).update();
 	}
 
-	/** Cancel step 1. Locks the reservation row; parallel cancels of it queue here. */
-	Optional<StoredReservation> lockReservation(UUID reservationId) {
+	// ---- cancel -------------------------------------------------------------------
+
+	/** Locks the reservation row; parallel cancels of the same reservation queue here. */
+	Optional<ReservationView> lockReservation(UUID reservationId) {
 		return this.jdbc.sql("""
 				SELECT id, show_id, user_id, seat_labels, amount_paise, status
 				FROM reservations WHERE id = ?
 				FOR UPDATE
 				""")
 			.param(reservationId)
-			.query((rs, n) -> new StoredReservation(rs.getObject("id", UUID.class), rs.getObject("show_id", UUID.class),
+			.query((rs, n) -> new ReservationView(rs.getObject("id", UUID.class), rs.getObject("show_id", UUID.class),
 					rs.getString("user_id"), List.of((String[]) rs.getArray("seat_labels").getArray()),
-					rs.getLong("amount_paise"), rs.getString("status")))
+					rs.getLong("amount_paise"), ReservationStatus.valueOf(rs.getString("status"))))
 			.optional();
 	}
 
-	/** Cancel step 2. Same lock order as reserve: quota row before seat rows. */
-	void releaseQuota(UUID showId, String userId, int seats) {
+	void removeFromQuota(UUID showId, String userId, int seats) {
 		int updated = this.jdbc.sql("""
 				UPDATE user_show_quota SET seats_owned = seats_owned - ?
 				 WHERE show_id = ? AND user_id = ?
@@ -145,9 +130,9 @@ class ReservationRepository {
 	}
 
 	/**
-	 * Cancel step 3. Frees only the seats that still point at this
-	 * reservation, locking them in label order (same order as reserve). A seat
-	 * that already belongs to someone else is never touched.
+	 * Frees only the seats that still point at this reservation, locking them in
+	 * label order (same order as reserve). A seat that now belongs to someone
+	 * else is never touched. Returns the number of seats freed.
 	 */
 	int releaseSeats(UUID showId, UUID reservationId) {
 		return this.jdbc.sql("""
@@ -165,15 +150,10 @@ class ReservationRepository {
 				""").params(showId, reservationId, showId).update();
 	}
 
-	/** Cancel step 4. */
 	void markCancelled(UUID reservationId) {
 		this.jdbc.sql("UPDATE reservations SET status = 'CANCELLED', cancelled_at = now() WHERE id = ?")
 			.param(reservationId)
 			.update();
-	}
-
-	record StoredReservation(UUID id, UUID showId, String userId, List<String> seats, long amountPaise,
-			String status) {
 	}
 
 	record StoredKey(String requestHash, String responseJson) {

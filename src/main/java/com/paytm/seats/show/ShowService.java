@@ -1,8 +1,9 @@
 package com.paytm.seats.show;
 
+import com.paytm.seats.common.ApiException;
+import com.paytm.seats.common.ErrorCode;
 import com.paytm.seats.config.SeatsProperties;
-import com.paytm.seats.reservation.SeatGauges;
-import com.paytm.seats.web.ApiException;
+import com.paytm.seats.observability.SeatGauges;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -29,12 +30,12 @@ public class ShowService {
 	public ShowView create(CreateShowRequest request) {
 		List<String> labels = request.seats();
 		if (labels.size() > this.properties.maxSeatsPerShow()) {
-			throw ApiException.unprocessable("invalid_seats",
+			throw new ApiException(ErrorCode.INVALID_SEATS,
 					"a show can have at most " + this.properties.maxSeatsPerShow() + " seats");
 		}
 		Set<String> unique = new HashSet<>(labels);
 		if (unique.size() != labels.size()) {
-			throw ApiException.unprocessable("invalid_seats", "seat labels must be unique");
+			throw new ApiException(ErrorCode.INVALID_SEATS, "seat labels must be unique");
 		}
 		int perUserLimit = (request.perUserLimit() != null) ? request.perUserLimit()
 				: this.properties.defaultPerUserLimit();
@@ -65,7 +66,7 @@ public class ShowService {
 	}
 
 	private static ApiException notFound() {
-		return ApiException.notFound("show_not_found", "show not found");
+		return new ApiException(ErrorCode.SHOW_NOT_FOUND, "show not found");
 	}
 
 }

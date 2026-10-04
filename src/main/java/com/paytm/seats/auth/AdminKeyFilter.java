@@ -1,5 +1,7 @@
-package com.paytm.seats.web;
+package com.paytm.seats.auth;
 
+import com.paytm.seats.common.ErrorCode;
+import com.paytm.seats.common.ErrorResponse;
 import com.paytm.seats.config.SeatsProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -52,7 +54,7 @@ public class AdminKeyFilter extends OncePerRequestFilter {
 		}
 		response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-		this.mapper.writeValue(response.getOutputStream(), ErrorResponse.of("forbidden", "valid X-Admin-Key required"));
+		this.mapper.writeValue(response.getOutputStream(), ErrorResponse.of(ErrorCode.FORBIDDEN, "valid X-Admin-Key required"));
 	}
 
 }

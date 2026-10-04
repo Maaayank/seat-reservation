@@ -9,39 +9,46 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Reserve and cancel. Both need a bearer token (BearerTokenFilter); the user
+ * comes only from the token, never from the body.
+ */
 @RestController
-public class ReservationController {
+class ReservationController {
 
-	static final String IDEMPOTENCY_HEADER = "Idempotency-Key";
+	private final ReservationService reservations;
 
-	static final String REPLAYED_HEADER = "Idempotent-Replayed";
+	private final CancelService cancels;
 
-	private final ReservationService service;
-
-	public ReservationController(ReservationService service) {
-		this.service = service;
+	ReservationController(ReservationService reservations, CancelService cancels) {
+		this.reservations = reservations;
+		this.cancels = cancels;
 	}
 
 	/**
-	 * Reserve seats for the token's user. 201 on success, and also on an
-	 * idempotent replay (same key, same request), which returns the original
-	 * reservation with {@code Idempotent-Replayed: true}.
+	 * 201 for a new reservation, and also for an idempotent replay (same key,
+	 * same request), which returns the original body with
+	 * {@code Idempotent-Replayed: true}.
 	 */
 	@PostMapping("/shows/{showId}/reserve")
-	public ResponseEntity<ReservationView> reserve(AuthenticatedUser user, @PathVariable String showId,
+	ResponseEntity<ReservationView> reserve(AuthenticatedUser user, @PathVariable String showId,
 			@RequestBody(required = false) ReserveRequest request,
-			@RequestHeader(name = IDEMPOTENCY_HEADER, required = false) String idempotencyKey) {
-		ReservationService.ReserveResult result = this.service.reserve(user, showId, request, idempotencyKey);
-		ReservationView view = result.reservation();
-		return ResponseEntity.created(URI.create("/reservations/" + view.reservationId()))
-			.header(REPLAYED_HEADER, Boolean.toString(result.replayed()))
-			.body(view);
+			@RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey) {
+		ReserveOutcome outcome = this.reservations.reserve(user, showId, request, idempotencyKey);
+		ReservationView reservation = switch (outcome) {
+			case ReserveOutcome.Confirmed confirmed -> confirmed.reservation();
+			case ReserveOutcome.Replayed replayed -> replayed.reservation();
+			case ReserveOutcome.Declined declined -> throw new IllegalStateException("declines are thrown");
+		};
+		return ResponseEntity.created(URI.create("/reservations/" + reservation.reservationId()))
+			.header("Idempotent-Replayed", Boolean.toString(outcome instanceof ReserveOutcome.Replayed))
+			.body(reservation);
 	}
 
-	/** Owner-only, idempotent. 200 with the reservation in status {@code cancelled}. */
+	/** 200 with the reservation in status {@code cancelled}. A repeat cancel returns the same body. */
 	@PostMapping("/reservations/{reservationId}/cancel")
-	public ReservationView cancel(AuthenticatedUser user, @PathVariable String reservationId) {
-		return this.service.cancel(user, reservationId);
+	ReservationView cancel(AuthenticatedUser user, @PathVariable String reservationId) {
+		return this.cancels.cancel(user, reservationId);
 	}
 
 }

@@ -1,4 +1,4 @@
-package com.paytm.seats.web;
+package com.paytm.seats.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

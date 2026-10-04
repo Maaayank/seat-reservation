@@ -1,4 +1,4 @@
-package com.paytm.seats.reservation;
+package com.paytm.seats.reservation.layers;
 
 import com.paytm.seats.config.SeatsProperties;
 import io.micrometer.core.instrument.Counter;
@@ -23,9 +23,9 @@ import org.springframework.stereotype.Component;
  * </ul>
  */
 @Component
-class DeclineLayers {
+public class DeclineLayers {
 
-	static final String METRIC = "reservations.decline.path";
+	public static final String METRIC = "reservations.decline.path";
 
 	private final SeatsProperties.Layers config;
 
@@ -33,18 +33,18 @@ class DeclineLayers {
 
 	private final SeatClaims claims;
 
-	private final ReservationRepository repository;
+	private final SeatOwnership ownership;
 
 	private final Map<String, Counter> declines;
 
 	private final Counter claimTimeouts;
 
-	DeclineLayers(SeatsProperties properties, SoldSeats sold, SeatClaims claims, ReservationRepository repository,
+	DeclineLayers(SeatsProperties properties, SoldSeats sold, SeatClaims claims, SeatOwnership ownership,
 			MeterRegistry registry) {
 		this.config = properties.layers();
 		this.sold = sold;
 		this.claims = claims;
-		this.repository = repository;
+		this.ownership = ownership;
 		this.declines = Map.of("l2_sold_set", counter(registry, "l2_sold_set"), "l1_read",
 				counter(registry, "l1_read"), "l3_waiter", counter(registry, "l3_waiter"), "db",
 				counter(registry, "db"));
@@ -57,12 +57,12 @@ class DeclineLayers {
 	}
 
 	/** L2 then L1. Returns true if the request can be declined as seat_taken now. */
-	boolean declineEarly(UUID showId, List<String> seats, String userId) {
+	public boolean declineEarly(UUID showId, List<String> seats, String userId) {
 		if (this.config.soldSet() && this.sold.anyOwnedByOther(showId, seats, userId)) {
 			this.declines.get("l2_sold_set").increment();
 			return true;
 		}
-		if (this.config.readCheck() && this.repository.anyTakenByOther(showId, seats.toArray(String[]::new), userId)) {
+		if (this.config.readCheck() && this.ownership.anyTakenByOther(showId, seats, userId)) {
 			this.declines.get("l1_read").increment();
 			return true;
 		}
@@ -70,7 +70,7 @@ class DeclineLayers {
 	}
 
 	/** L3. Returns a claim to hold for the whole DB attempt (may be a no-op claim). */
-	SeatClaims.Claim claim(UUID showId, List<String> sortedSeats) {
+	public SeatClaims.Claim claim(UUID showId, List<String> sortedSeats) {
 		if (!this.config.seatClaim()) {
 			return SeatClaims.Claim.none();
 		}
@@ -88,7 +88,7 @@ class DeclineLayers {
 	}
 
 	/** After an L3 wait: did the request ahead of us sell one of our seats? */
-	boolean declineAfterWait(SeatClaims.Claim claim, UUID showId, List<String> seats, String userId) {
+	public boolean declineAfterWait(SeatClaims.Claim claim, UUID showId, List<String> seats, String userId) {
 		if (claim.acquired() && this.config.soldSet() && this.sold.anyOwnedByOther(showId, seats, userId)) {
 			this.declines.get("l3_waiter").increment();
 			return true;
@@ -96,19 +96,19 @@ class DeclineLayers {
 		return false;
 	}
 
-	void declinedByDatabase() {
+	public void declinedByDatabase() {
 		this.declines.get("db").increment();
 	}
 
 	/** Call after commit and before the claim is released, so waiters see it. */
-	void confirmed(UUID showId, List<String> seats, UUID reservationId, String userId) {
+	public void confirmed(UUID showId, List<String> seats, UUID reservationId, String userId) {
 		if (this.config.soldSet()) {
 			this.sold.markSold(showId, seats, reservationId, userId);
 		}
 	}
 
 	/** Call after a cancel commits. */
-	void released(UUID showId, List<String> seats, UUID reservationId) {
+	public void released(UUID showId, List<String> seats, UUID reservationId) {
 		if (this.config.soldSet()) {
 			this.sold.markReleased(showId, seats, reservationId);
 		}

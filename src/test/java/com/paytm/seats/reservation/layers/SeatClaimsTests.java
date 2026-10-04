@@ -1,7 +1,8 @@
-package com.paytm.seats.reservation;
+package com.paytm.seats.reservation.layers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.paytm.seats.Concurrency;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +34,7 @@ class SeatClaimsTests {
 				}
 			});
 		}
-		List<Boolean> acquired = ReservationFixtures.concurrently(tasks);
+		List<Boolean> acquired = Concurrency.concurrently(tasks);
 		assertThat(acquired).containsOnly(true);
 		assertThat(maxInside.get()).isEqualTo(1);
 		assertThat(this.claims.inFlight()).isZero();
@@ -55,7 +56,7 @@ class SeatClaimsTests {
 				}
 			});
 		}
-		assertThat(ReservationFixtures.concurrently(tasks)).containsOnly(true);
+		assertThat(Concurrency.concurrently(tasks)).containsOnly(true);
 		assertThat(this.claims.inFlight()).isZero();
 	}
 

@@ -1,4 +1,4 @@
-package com.paytm.seats.reservation;
+package com.paytm.seats.reservation.layers;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  * anyway: correctness never depends on this layer.
  */
 @Component
-class SeatClaims {
+public class SeatClaims {
 
 	private final ConcurrentHashMap<SeatKey, Entry> entries = new ConcurrentHashMap<>();
 
@@ -82,7 +82,7 @@ class SeatClaims {
 	}
 
 	/** Holds the per-seat locks until closed. {@link #acquired()} is false after a timeout. */
-	static final class Claim implements AutoCloseable {
+	public static final class Claim implements AutoCloseable {
 
 		private final SeatClaims owner;
 
@@ -101,7 +101,7 @@ class SeatClaims {
 			return new Claim(null, List.of());
 		}
 
-		boolean acquired() {
+		public boolean acquired() {
 			return this.owner != null;
 		}
 

@@ -1,4 +1,4 @@
-package com.paytm.seats.reservation;
+package com.paytm.seats.observability;
 
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;

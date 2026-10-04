@@ -1,300 +1,126 @@
 package com.paytm.seats.reservation;
 
 import com.paytm.seats.auth.AuthenticatedUser;
+import com.paytm.seats.common.ApiException;
+import com.paytm.seats.common.ErrorCode;
+import com.paytm.seats.observability.ReservationMetrics;
+import com.paytm.seats.reservation.layers.DeclineLayers;
+import com.paytm.seats.reservation.layers.SeatClaims;
 import com.paytm.seats.show.Show;
 import com.paytm.seats.show.ShowCatalog;
 import com.paytm.seats.show.ShowService;
-import com.paytm.seats.web.ApiException;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
-import tools.jackson.databind.ObjectMapper;
 
 /**
- * The atomic seat decision. Order per request: validate (no DB) → fast-decline
- * layers L2/L1 → L3 per-seat claim → the transaction (T1, docs/DISCOVERY.md
- * §4.3.3). The layers only decline; the transaction alone grants seats.
+ * Reserve flow for one request:
+ *
+ * <pre>
+ * validate (no DB)                         → 4xx on bad input or over-limit
+ * fast-decline: L2 sold set, L1 read       → 409 seat_taken, no transaction
+ * L3 per-seat claim (one DB attempt/seat)  → waiters re-check L2 when it is their turn
+ * ReserveTransaction                       → the only step that grants seats
+ * </pre>
+ *
+ * The layers only ever decline, and only for seats owned by another user, so
+ * an idempotent retry always reaches the transaction and replays (D22). Every
+ * outcome is counted in the metrics and logged once as "reserve decided".
  */
 @Service
-public class ReservationService {
+class ReservationService {
 
 	private static final Logger log = LoggerFactory.getLogger("reservation");
 
-	private static final Pattern KEY_FORMAT = Pattern.compile("[A-Za-z0-9._:-]{1,128}");
-
 	private final ShowCatalog catalog;
-
-	private final ReservationRepository repository;
-
-	private final TransactionTemplate transactions;
-
-	private final ObjectMapper mapper;
 
 	private final DeclineLayers layers;
 
+	private final ReserveTransaction transaction;
+
 	private final ReservationMetrics metrics;
 
-	ReservationService(ShowCatalog catalog, ReservationRepository repository, TransactionTemplate transactions,
-			ObjectMapper mapper, DeclineLayers layers, ReservationMetrics metrics) {
-		this.metrics = metrics;
+	ReservationService(ShowCatalog catalog, DeclineLayers layers, ReserveTransaction transaction,
+			ReservationMetrics metrics) {
 		this.catalog = catalog;
-		this.repository = repository;
-		this.transactions = transactions;
-		this.mapper = mapper;
 		this.layers = layers;
+		this.transaction = transaction;
+		this.metrics = metrics;
 	}
 
-	public ReserveResult reserve(AuthenticatedUser user, String rawShowId, ReserveRequest request, String headerKey) {
+	/** Returns a confirmed or replayed reservation; throws {@link ApiException} for every decline. */
+	ReserveOutcome reserve(AuthenticatedUser user, String rawShowId, ReserveRequest request, String headerKey) {
 		UUID showId = ShowService.parseShowId(rawShowId);
 		ShowCatalog.Entry entry = this.catalog.find(showId)
-			.orElseThrow(() -> ApiException.notFound("show_not_found", "show not found"));
+			.orElseThrow(() -> new ApiException(ErrorCode.SHOW_NOT_FOUND, "show not found"));
+		ReserveOutcome outcome;
+		List<String> seats = List.of();
 		try {
-			return reserve(user, entry.show(), entry, request, headerKey);
+			String key = ReserveRequestValidator.idempotencyKey(headerKey, request);
+			seats = ReserveRequestValidator.seats(request, entry);
+			outcome = decide(user, entry.show(), key, seats);
 		}
 		catch (ApiException ex) {
-			this.metrics.declined(showId, metricReason(ex.code()));
-			throw ex;
+			outcome = new ReserveOutcome.Declined(ex.error(), ex.getMessage());
 		}
+		record(showId, seats, outcome);
+		if (outcome instanceof ReserveOutcome.Declined declined) {
+			throw new ApiException(declined.error(), declined.message());
+		}
+		return outcome;
 	}
 
-	private ReserveResult reserve(AuthenticatedUser user, Show show, ShowCatalog.Entry entry, ReserveRequest request,
-			String headerKey) {
-		UUID showId = show.id();
-		String key = resolveKey(headerKey, request);
-		List<String> seats = validateSeats(request, entry);
-		if (seats.size() > show.perUserLimit()) {
-			throw decline(ApiException.conflict("per_user_limit",
-					"at most " + show.perUserLimit() + " seats per user for this show"), user, showId, seats);
+	private ReserveOutcome decide(AuthenticatedUser user, Show show, String key, List<String> seats) {
+		if (this.layers.declineEarly(show.id(), seats, user.id())) {
+			return seatTaken();
 		}
-
-		// Fast-decline layers L2 → L1 (no locks, no transaction).
-		if (this.layers.declineEarly(showId, seats, user.id())) {
-			throw decline(seatTaken(), user, showId, seats);
-		}
-
-		String requestHash = RequestHash.of(showId, seats);
-		List<String> sorted = seats.stream().sorted().toList();
-		UUID reservationId = UUID.randomUUID();
 		long amount = Math.multiplyExact(show.pricePaise(), (long) seats.size());
-		ReservationView view = new ReservationView(reservationId, showId, user.id(), seats, amount, "confirmed");
+		ReservationView reservation = new ReservationView(UUID.randomUUID(), show.id(), user.id(), seats, amount,
+				ReservationStatus.CONFIRMED);
+		String requestHash = RequestHash.of(show.id(), seats);
 
-		ReserveResult result;
-		// L3: one in-flight DB attempt per seat. Held until L2 is updated, so waiters see the outcome.
-		try (SeatClaims.Claim claim = this.layers.claim(showId, sorted)) {
-			if (this.layers.declineAfterWait(claim, showId, seats, user.id())) {
-				throw decline(seatTaken(), user, showId, seats);
+		// The claim is held until the sold set is updated, so the next waiter sees the result.
+		try (SeatClaims.Claim claim = this.layers.claim(show.id(), seats.stream().sorted().toList())) {
+			if (this.layers.declineAfterWait(claim, show.id(), seats, user.id())) {
+				return seatTaken();
 			}
-			result = decide(user, show, key, requestHash, seats, view);
-			if (result.declined() == null && !result.replayed()) {
-				this.layers.confirmed(showId, seats, reservationId, user.id());
+			ReserveOutcome outcome = this.transaction.execute(show, key, requestHash, reservation);
+			if (outcome instanceof ReserveOutcome.Confirmed) {
+				this.layers.confirmed(show.id(), seats, reservation.reservationId(), user.id());
 			}
-		}
-
-		if (result.declined() != null) {
-			if ("seat_taken".equals(result.declined().code())) {
+			else if (outcome instanceof ReserveOutcome.Declined declined && declined.error() == ErrorCode.SEAT_TAKEN) {
 				this.layers.declinedByDatabase();
 			}
-			throw decline(result.declined(), user, showId, seats);
+			return outcome;
 		}
-		log.atInfo()
-			.addKeyValue("show_id", showId)
-			.addKeyValue("seats", seats)
-			.addKeyValue("outcome", result.replayed() ? "idempotent_replay" : "confirmed")
-			.addKeyValue("reservation_id", result.reservation().reservationId())
-			.log("reserve decided");
-		if (result.replayed()) {
-			this.metrics.declined(showId, "idempotent_replay");
-		}
-		else {
-			this.metrics.confirmed(showId);
-		}
-		return result;
 	}
 
-	/**
-	 * The transaction (T1). Lock order: idempotency key → quota row → seat rows
-	 * by label. Any decline rolls back everything, including the key.
-	 */
-	private ReserveResult decide(AuthenticatedUser user, Show show, String key, String requestHash, List<String> seats,
-			ReservationView view) {
-		UUID showId = show.id();
-		String[] labels = seats.toArray(String[]::new);
-		UUID reservationId = view.reservationId();
-		ReserveResult result = this.transactions.execute((tx) -> {
-			// 1. Idempotency key.
-			if (!this.repository.claimIdempotencyKey(user.id(), key, requestHash, showId)) {
-				tx.setRollbackOnly();
-				return replay(user.id(), key, requestHash);
+	private static ReserveOutcome seatTaken() {
+		return new ReserveOutcome.Declined(ErrorCode.SEAT_TAKEN, "one or more seats are taken");
+	}
+
+	/** One metric and one log line per reserve request. */
+	private void record(UUID showId, List<String> seats, ReserveOutcome outcome) {
+		var line = log.atInfo().addKeyValue("show_id", showId).addKeyValue("seats", seats);
+		switch (outcome) {
+			case ReserveOutcome.Confirmed confirmed -> {
+				this.metrics.confirmed(showId);
+				line.addKeyValue("outcome", "confirmed")
+					.addKeyValue("reservation_id", confirmed.reservation().reservationId());
 			}
-			// 2. Per-user quota.
-			if (!this.repository.reserveQuota(showId, user.id(), seats.size(), show.perUserLimit())) {
-				tx.setRollbackOnly();
-				return ReserveResult.declined(ApiException.conflict("per_user_limit",
-						"at most " + show.perUserLimit() + " seats per user for this show"));
+			case ReserveOutcome.Replayed replayed -> {
+				this.metrics.replayed(showId);
+				line.addKeyValue("outcome", "idempotent_replay")
+					.addKeyValue("reservation_id", replayed.reservation().reservationId());
 			}
-			// 3. Lock seats in label order; all-or-nothing.
-			List<ReservationRepository.LockedSeat> locked = this.repository.lockSeats(showId, labels);
-			if (locked.size() != seats.size()) {
-				tx.setRollbackOnly();
-				return ReserveResult.declined(ApiException.unprocessable("invalid_seats", "unknown seat label"));
+			case ReserveOutcome.Declined declined -> {
+				this.metrics.declined(showId, declined.error());
+				line.addKeyValue("outcome", "declined").addKeyValue("reason", declined.error().code());
 			}
-			if (!locked.stream().allMatch(ReservationRepository.LockedSeat::free)) {
-				tx.setRollbackOnly();
-				return ReserveResult.declined(seatTaken());
-			}
-			// 4-6. Write reservation, seats and the replayable response.
-			this.repository.insertReservation(reservationId, showId, user.id(), labels, view.amountPaise());
-			this.repository.confirmSeats(showId, labels, reservationId, user.id());
-			this.repository.completeIdempotencyKey(user.id(), key, reservationId, this.mapper.writeValueAsString(view));
-			return ReserveResult.confirmed(view);
-		});
-		return Objects.requireNonNull(result);
-	}
-
-	/** Maps an error code to the {@code reason} tag of reservations_declined_total. */
-	private static String metricReason(String code) {
-		return switch (code) {
-			case "seat_taken", "per_user_limit", "idempotency_key_reuse" -> code;
-			default -> "invalid";
-		};
-	}
-
-	private static ApiException seatTaken() {
-		return ApiException.conflict("seat_taken", "one or more seats are taken");
-	}
-
-	/**
-	 * Owner-only cancel. Lock order: reservation row → quota row → seat rows by
-	 * label (same as reserve, so the two cannot deadlock). Idempotent: a second
-	 * cancel returns the same cancelled reservation. Another user's reservation
-	 * is reported as not found, so its existence is not revealed.
-	 */
-	public ReservationView cancel(AuthenticatedUser user, String rawReservationId) {
-		UUID reservationId = parseReservationId(rawReservationId);
-		CancelOutcome outcome = this.transactions.execute((tx) -> {
-			ReservationRepository.StoredReservation stored = this.repository.lockReservation(reservationId)
-				.filter((r) -> r.userId().equals(user.id()))
-				.orElseThrow(ReservationService::reservationNotFound);
-			if ("CANCELLED".equals(stored.status())) {
-				return new CancelOutcome(view(stored, "cancelled"), false);
-			}
-			this.repository.releaseQuota(stored.showId(), stored.userId(), stored.seats().size());
-			int released = this.repository.releaseSeats(stored.showId(), reservationId);
-			if (released != stored.seats().size()) {
-				throw new IllegalStateException("reservation " + reservationId + " owns " + released + " of "
-						+ stored.seats().size() + " seats");
-			}
-			this.repository.markCancelled(reservationId);
-			return new CancelOutcome(view(stored, "cancelled"), true);
-		});
-		Objects.requireNonNull(outcome);
-		ReservationView result = outcome.view();
-		if (outcome.changed()) {
-			this.layers.released(result.showId(), result.seats(), reservationId);
-			this.metrics.cancelled(result.showId());
 		}
-		log.atInfo()
-			.addKeyValue("show_id", result.showId())
-			.addKeyValue("seats", result.seats())
-			.addKeyValue("outcome", "cancelled")
-			.addKeyValue("reservation_id", reservationId)
-			.log("cancel decided");
-		return result;
-	}
-
-	private static ReservationView view(ReservationRepository.StoredReservation stored, String status) {
-		return new ReservationView(stored.id(), stored.showId(), stored.userId(), stored.seats(), stored.amountPaise(),
-				status);
-	}
-
-	private static UUID parseReservationId(String raw) {
-		try {
-			return UUID.fromString(raw);
-		}
-		catch (IllegalArgumentException ex) {
-			throw reservationNotFound();
-		}
-	}
-
-	private static ApiException reservationNotFound() {
-		return ApiException.notFound("reservation_not_found", "reservation not found");
-	}
-
-	private ReserveResult replay(String userId, String key, String requestHash) {
-		ReservationRepository.StoredKey stored = this.repository.findIdempotencyKey(userId, key)
-			.orElseThrow(() -> new IllegalStateException("idempotency key vanished after conflict"));
-		if (!stored.requestHash().equals(requestHash)) {
-			return ReserveResult.declined(ApiException.conflict("idempotency_key_reuse",
-					"idempotency key was already used with a different request"));
-		}
-		if (stored.responseJson() == null) {
-			throw new IllegalStateException("committed idempotency key has no stored response");
-		}
-		return ReserveResult.replayed(this.mapper.readValue(stored.responseJson(), ReservationView.class));
-	}
-
-	private static String resolveKey(String headerKey, ReserveRequest request) {
-		String key = (headerKey != null && !headerKey.isBlank()) ? headerKey
-				: (request != null) ? request.idempotencyKey() : null;
-		if (key == null || key.isBlank()) {
-			throw ApiException.badRequest("idempotency_key_required",
-					"send an Idempotency-Key header or an idempotency_key field");
-		}
-		if (!KEY_FORMAT.matcher(key).matches()) {
-			throw ApiException.unprocessable("invalid_request",
-					"idempotency key must be 1-128 chars of [A-Za-z0-9._:-]");
-		}
-		return key;
-	}
-
-	private static List<String> validateSeats(ReserveRequest request, ShowCatalog.Entry entry) {
-		List<String> seats = (request != null) ? request.seats() : null;
-		if (seats == null || seats.isEmpty()) {
-			throw ApiException.unprocessable("invalid_seats", "seats must not be empty");
-		}
-		if (seats.stream().anyMatch(Objects::isNull) || new HashSet<>(seats).size() != seats.size()) {
-			throw ApiException.unprocessable("invalid_seats", "seats must be unique and non-null");
-		}
-		if (!entry.seatLabels().containsAll(seats)) {
-			throw ApiException.unprocessable("invalid_seats", "unknown seat label for this show");
-		}
-		return List.copyOf(seats);
-	}
-
-	private static ApiException decline(ApiException reason, AuthenticatedUser user, UUID showId, List<String> seats) {
-		log.atInfo()
-			.addKeyValue("show_id", showId)
-			.addKeyValue("seats", seats)
-			.addKeyValue("outcome", "declined")
-			.addKeyValue("reason", reason.code())
-			.log("reserve decided");
-		return reason;
-	}
-
-	private record CancelOutcome(ReservationView view, boolean changed) {
-	}
-
-	/** Outcome of the transaction: exactly one of reservation or declined is set. */
-	public record ReserveResult(ReservationView reservation, boolean replayed, ApiException declined) {
-
-		static ReserveResult confirmed(ReservationView view) {
-			return new ReserveResult(view, false, null);
-		}
-
-		static ReserveResult replayed(ReservationView view) {
-			return new ReserveResult(view, true, null);
-		}
-
-		static ReserveResult declined(ApiException reason) {
-			return new ReserveResult(null, false, reason);
-		}
-
+		line.log("reserve decided");
 	}
 
 }
