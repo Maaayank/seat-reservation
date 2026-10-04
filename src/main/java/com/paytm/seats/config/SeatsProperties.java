@@ -22,7 +22,8 @@ public record SeatsProperties(
 		Duration jwtTtl,
 		@Min(1) @Max(100_000) int maxSeatsPerShow,
 		@Min(1) int defaultPerUserLimit,
-		@Min(1) @Max(100_000) int maxTokensPerRequest) {
+		@Min(1) @Max(100_000) int maxTokensPerRequest,
+		Layers layers) {
 
 	public SeatsProperties {
 		if (jwtTtl == null) {
@@ -37,6 +38,23 @@ public record SeatsProperties(
 		if (maxTokensPerRequest == 0) {
 			maxTokensPerRequest = 10_000;
 		}
+		if (layers == null) {
+			layers = new Layers(true, true, true, null);
+		}
+	}
+
+	/**
+	 * Fast-decline layers. L2 = in-memory sold set, L1 = non-locking read
+	 * before the transaction, L3 = one in-flight DB attempt per seat.
+	 */
+	public record Layers(boolean soldSet, boolean readCheck, boolean seatClaim, Duration seatClaimTimeout) {
+
+		public Layers {
+			if (seatClaimTimeout == null) {
+				seatClaimTimeout = Duration.ofSeconds(5);
+			}
+		}
+
 	}
 
 	/** HS256 needs a key of at least 256 bits. */

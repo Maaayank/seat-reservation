@@ -26,6 +26,9 @@ services:
       DATABASE_PASSWORD: seats
       ADMIN_API_KEY: ${ADMIN_API_KEY:-local-admin-key}
       JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-change-me-0123456789abcdef}
+      LAYER_SOLD_SET: ${LAYER_SOLD_SET:-true}
+      LAYER_READ_CHECK: ${LAYER_READ_CHECK:-true}
+      LAYER_SEAT_CLAIM: ${LAYER_SEAT_CLAIM:-true}
     ports:
       - "8080:8080"
     restart: unless-stopped

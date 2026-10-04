@@ -32,6 +32,13 @@ seats:
   jwt-secret: ${JWT_SECRET:}
   jwt-ttl: ${JWT_TTL:1h}
   max-tokens-per-request: 10000
+  # Fast-decline layers (docs/DISCOVERY.md §6.2). They only decline faster;
+  # the DB transaction stays the only authority that grants a seat.
+  layers:
+    sold-set: ${LAYER_SOLD_SET:true}
+    read-check: ${LAYER_READ_CHECK:true}
+    seat-claim: ${LAYER_SEAT_CLAIM:true}
+    seat-claim-timeout: ${LAYER_SEAT_CLAIM_TIMEOUT:5s}
   max-seats-per-show: ${MAX_SEATS_PER_SHOW:10000}
   default-per-user-limit: 4
 
