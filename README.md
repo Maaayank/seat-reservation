@@ -63,6 +63,44 @@ curl -s localhost:8080/shows -H 'Content-Type: application/json' -H 'X-Admin-Key
 Every response carries `X-Request-Id`. A well-formed client value is echoed; otherwise one is generated.
 Logs are JSON (ECS) on stdout and include `request_id`.
 
+## Burst: reproduce the on-sale stampede
+
+```sh
+./burst.sh <BASE_URL> <ADMIN_KEY> [--profile smoke|full] [--max-in-flight N]
+# or
+make burst URL=<BASE_URL> KEY=<ADMIN_KEY> PROFILE=full
+```
+
+Runs with a local JDK 21, else in a container (Docker or Podman). Exit code 0 only if every check passes.
+
+| Profile | Wave | Use |
+|---|---|---|
+| `smoke` (default) | 1,500 requests: 3 hot seats × 100 users, 20 retry groups × 5, 1,100 stampede | Free-tier live URL, CI smoke. |
+| `full` | 20,000 requests: 10 hot seats × 500 users, 200 retry groups × 5, 14,000 stampede | Your own deploy or local compose. |
+
+What it does, on one fresh show:
+
+1. Waits for `/readyz` (reports cold-start time), creates the show, mints tokens in bulk.
+2. **On-sale wave**, all requests released at once: hot-seat storm, skewed stampede (70% want rows A–C), idempotent retry groups (same key sent 5× in parallel). An invariant poller reads `GET /shows/{id}` every 200 ms during the wave.
+3. Same key with different seats → expects 409.
+4. Per-user limit: users send 10 parallel reserves on a limit-4 show → expects exactly 4.
+5. Spoof: body `user_id` of another user → acts as the token user; the other user cannot cancel it.
+6. Cancel racing rebookers on won seats.
+7. Final reconciliation: counts add up, confirmed seats equal what clients were told, Prometheus counters equal client-observed outcomes, `seats` gauge equals the API.
+
+Requests that get no HTTP response (timeouts, dropped connections) are reported separately as client-side errors, never as 5xx.
+
+Measured locally (`full`, run inside the compose network):
+
+```
+on-sale wave: 20000 requests, {201=994, 201 (replay)=64, 409:seat_taken=18942}
+latency p50 219 ms | p95 936 ms | p99 1254 ms
+RESULT: PASS   (0 5xx, 10/10 hot seats with exactly one winner, metrics reconcile exactly)
+```
+
+> **Capacity note.** The live demo runs on a free tier (small CPU, sleeps when idle; first request after idle can take ~60 s). Use `--profile smoke` against it. Run `full` against your own deploy, or locally with `make up && make burst-in-network`.
+> Bursting a local stack through the host port (`localhost:8080`) with thousands of connections can hit the container runtime's port forwarder (we saw dropped connections with Podman on Windows). The server never sees those requests; the tool reports them as client-side errors. Running inside the compose network avoids it.
+
 ## Observability
 
 `docker compose up --build` (or `podman compose up --build`) also starts:
