@@ -62,7 +62,8 @@ class JwtServiceTests {
 	}
 
 	private static JwtService service(String secret, Clock clock) {
-		SeatsProperties properties = new SeatsProperties("admin", secret, Duration.ofHours(1), 0, 0, 0, null);
+		SeatsProperties properties = new SeatsProperties("admin", secret, Duration.ofHours(1), 10_000, 4, 10_000,
+				new SeatsProperties.Layers(true, true, true, Duration.ofSeconds(5)));
 		return new JwtService(properties, clock);
 	}
 
