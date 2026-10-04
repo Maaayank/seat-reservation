@@ -12,7 +12,9 @@ spring:
       pool-name: seats-pool
       maximum-pool-size: ${DB_POOL_SIZE:10}
       minimum-idle: 2
-      connection-timeout: 30000
+      # How long a request may wait for a pooled connection (ms). Raise on a tiny CPU so
+      # overload becomes slow answers, not 500s.
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:30000}
       # Session-level DB timeouts, set once per pooled connection (no per-request round trip).
       # A lock timeout surfaces as a 500 on purpose: it must not happen in a healthy system.
       connection-init-sql: "SET lock_timeout = '5s'; SET statement_timeout = '10s'; SET idle_in_transaction_session_timeout = '30s'"
@@ -47,7 +49,15 @@ server:
     max-connections: 20000
     accept-count: 1000
 
+# /actuator/info shows which commit is live (Render sets RENDER_GIT_COMMIT).
+info:
+  app:
+    commit: ${RENDER_GIT_COMMIT:local}
+
 management:
+  info:
+    env:
+      enabled: true
   endpoints:
     web:
       exposure:
